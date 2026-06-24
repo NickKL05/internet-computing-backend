@@ -57,12 +57,23 @@ Once running, check it is alive:
 - `GET http://localhost:3000/` returns basic API info
 - `GET http://localhost:3000/health` returns the database connection status
 
-The sample data from `npm run db:seed` creates two logins:
+`npm run db:seed` loads a sample dataset across three terms (a past term with
+completed courses, the current open-registration term, and a future term):
+faculties, departments, programs, ~14 courses with prerequisites and an
+antirequisite, ~21 sections, five students with academic history and current
+registrations, an active hold, degree requirements, plans, and saved filters.
+
+Logins (students share one password, admins another):
 
 ```
-student -> username: teststudent  password: Password123!
-admin   -> username: admin        password: Admin123!
+students: teststudent, astudent, bstudent, cstudent, dstudent   password: Password123!
+admins:   admin, registrar                                       password: Admin123!
 ```
+
+Some scenarios baked into the data: `CP312` (Fall) is full so registering it
+waitlists; `bstudent` has an active hold that blocks registration; and several
+students have completed prerequisites so eligibility checks have something to
+work against.
 
 To create an additional administrator at any time:
 

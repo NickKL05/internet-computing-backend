@@ -8,7 +8,7 @@ const waitlistController = require('../controllers/waitlistController');
 const router = express.Router();
 
 router.get('/', authenticate, authorize('admin'), waitlistController.list);
-router.get('/section/:sectionId', authenticate, authorize('admin'), waitlistController.bySection);
+router.get('/section/:crn', authenticate, authorize('admin'), waitlistController.bySection);
 router.get('/student/:studentId', authenticate, waitlistController.byStudent);
 router.get('/:id', authenticate, authorize('admin'), waitlistController.getById);
 router.post('/', authenticate, waitlistController.addToWaitlist);

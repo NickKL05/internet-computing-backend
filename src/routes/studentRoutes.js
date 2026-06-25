@@ -12,6 +12,7 @@ router.get('/:id/schedule', authenticate, studentController.schedule);
 router.get('/:id/enrollments', authenticate, studentController.enrollments);
 router.get('/:id/waitlist', authenticate, studentController.waitlist);
 router.get('/:id/degree-progress', authenticate, studentController.degreeProgress);
+router.get('/:id/conflicts', authenticate, studentController.conflicts);
 router.get('/:id', authenticate, studentController.getById);
 router.post('/', authenticate, authorize('admin'), studentController.create);
 router.put('/:id', authenticate, authorize('admin'), studentController.update);

@@ -30,7 +30,7 @@ CREATE TABLE Programs
 CREATE TABLE Accounts
 (
     account_id     INT PRIMARY KEY AUTO_INCREMENT,
-    username       VARCHAR(100) UNIQUE NOT NULL,
+    email          VARCHAR(100) UNIQUE NOT NULL,
     password_hash  VARCHAR(255)        NOT NULL,
     last_login     DATETIME,
     account_status VARCHAR(20) DEFAULT 'Active'
@@ -42,7 +42,6 @@ CREATE TABLE Students
     account_id    INT UNIQUE,
     first_name    VARCHAR(50),
     last_name     VARCHAR(50),
-    student_email VARCHAR(100) UNIQUE,
     student_phone VARCHAR(20) UNIQUE,
     date_of_birth DATE,
     program_id    INT,
@@ -57,7 +56,6 @@ CREATE TABLE Administrators
     account_id INT UNIQUE,
     first_name VARCHAR(50),
     last_name  VARCHAR(50),
-    email      VARCHAR(100) UNIQUE,
     FOREIGN KEY (account_id) REFERENCES Accounts (account_id)
 );
 
@@ -111,12 +109,15 @@ CREATE TABLE Rooms
     room_id     INT PRIMARY KEY AUTO_INCREMENT,
     building    VARCHAR(50),
     room_number VARCHAR(20),
-    capacity    INT
+    capacity    INT,
+    campus      VARCHAR(50)
 );
 
+-- crn is the course reference number students register with; it is the section
+-- primary key. parent_crn links a lab or tutorial to its parent lecture.
 CREATE TABLE CourseSections
 (
-    section_id     INT PRIMARY KEY AUTO_INCREMENT,
+    crn            INT PRIMARY KEY AUTO_INCREMENT,
     course_id      INT,
     instructor_id  INT,
     term_id        INT,
@@ -126,20 +127,22 @@ CREATE TABLE CourseSections
     room_id        INT,
     delivery_mode  VARCHAR(20),
     status         VARCHAR(20),
+    parent_crn     INT,
     FOREIGN KEY (course_id) REFERENCES Courses (course_id),
     FOREIGN KEY (instructor_id) REFERENCES Instructors (instructor_id),
     FOREIGN KEY (term_id) REFERENCES AcademicTerms (term_id),
-    FOREIGN KEY (room_id) REFERENCES Rooms (room_id)
-);
+    FOREIGN KEY (room_id) REFERENCES Rooms (room_id),
+    FOREIGN KEY (parent_crn) REFERENCES CourseSections (crn)
+) AUTO_INCREMENT = 10001;
 
 CREATE TABLE ClassSchedule
 (
     schedule_id INT PRIMARY KEY AUTO_INCREMENT,
-    section_id  INT,
+    crn         INT,
     day_of_week VARCHAR(20),
     start_time  TIME,
     end_time    TIME,
-    FOREIGN KEY (section_id) REFERENCES CourseSections (section_id)
+    FOREIGN KEY (crn) REFERENCES CourseSections (crn)
 );
 
 CREATE TABLE Prerequisites
@@ -163,29 +166,40 @@ CREATE TABLE Antirequisites
     FOREIGN KEY (antirequisite_course_id) REFERENCES Courses (course_id)
 );
 
+CREATE TABLE Corequisites
+(
+    corequisite_id        INT PRIMARY KEY AUTO_INCREMENT,
+    course_id             INT,
+    corequisite_course_id INT,
+    UNIQUE (course_id, corequisite_course_id),
+    CHECK (course_id <> corequisite_course_id),
+    FOREIGN KEY (course_id) REFERENCES Courses (course_id),
+    FOREIGN KEY (corequisite_course_id) REFERENCES Courses (course_id)
+);
+
 CREATE TABLE Enrollments
 (
     enrollment_id   INT PRIMARY KEY AUTO_INCREMENT,
     student_id      INT,
-    section_id      INT,
+    crn             INT,
     enrollment_date DATE,
     final_grade     VARCHAR(5),
     status          VARCHAR(50),
-    UNIQUE (student_id, section_id),
+    UNIQUE (student_id, crn),
     FOREIGN KEY (student_id) REFERENCES Students (student_id),
-    FOREIGN KEY (section_id) REFERENCES CourseSections (section_id)
+    FOREIGN KEY (crn) REFERENCES CourseSections (crn)
 );
 
 CREATE TABLE Waitlists
 (
     waitlist_id INT PRIMARY KEY AUTO_INCREMENT,
     student_id  INT,
-    section_id  INT,
+    crn         INT,
     position    INT,
     date_joined DATE,
-    UNIQUE (student_id, section_id),
+    UNIQUE (student_id, crn),
     FOREIGN KEY (student_id) REFERENCES Students (student_id),
-    FOREIGN KEY (section_id) REFERENCES CourseSections (section_id)
+    FOREIGN KEY (crn) REFERENCES CourseSections (crn)
 );
 
 CREATE TABLE CoursePlans
@@ -203,23 +217,23 @@ CREATE TABLE CoursePlanItems
 (
     plan_item_id INT PRIMARY KEY AUTO_INCREMENT,
     plan_id      INT,
-    section_id   INT,
+    crn          INT,
     date_added   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (plan_id, section_id),
+    UNIQUE (plan_id, crn),
     FOREIGN KEY (plan_id) REFERENCES CoursePlans (plan_id),
-    FOREIGN KEY (section_id) REFERENCES CourseSections (section_id)
+    FOREIGN KEY (crn) REFERENCES CourseSections (crn)
 );
 
 CREATE TABLE RegistrationAttempts
 (
     attempt_id     INT PRIMARY KEY AUTO_INCREMENT,
     student_id     INT,
-    section_id     INT,
+    crn            INT,
     attempt_date   DATETIME DEFAULT CURRENT_TIMESTAMP,
     result         VARCHAR(20),
     failure_reason VARCHAR(100),
     FOREIGN KEY (student_id) REFERENCES Students (student_id),
-    FOREIGN KEY (section_id) REFERENCES CourseSections (section_id)
+    FOREIGN KEY (crn) REFERENCES CourseSections (crn)
 );
 
 CREATE TABLE AuditLog
@@ -227,11 +241,11 @@ CREATE TABLE AuditLog
     audit_id    INT PRIMARY KEY AUTO_INCREMENT,
     student_id  INT,
     action_type VARCHAR(50),
-    section_id  INT,
+    crn         INT,
     action_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     details     VARCHAR(255),
     FOREIGN KEY (student_id) REFERENCES Students (student_id),
-    FOREIGN KEY (section_id) REFERENCES CourseSections (section_id)
+    FOREIGN KEY (crn) REFERENCES CourseSections (crn)
 );
 
 CREATE TABLE DegreeRequirements

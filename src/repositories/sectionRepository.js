@@ -4,22 +4,29 @@ const baseRepository = require('./baseRepository');
 const db = require('../db');
 
 const SECTION_COLUMNS = `
-  cs.section_id, cs.course_id, cs.instructor_id, cs.term_id, cs.section_number,
-  cs.capacity, cs.enrolled_count, cs.room_id, cs.delivery_mode, cs.status,
+  cs.crn, cs.course_id, cs.instructor_id, cs.term_id, cs.section_number,
+  cs.capacity, cs.enrolled_count, cs.room_id, cs.delivery_mode, cs.status, cs.parent_crn,
   (cs.capacity - cs.enrolled_count) AS seats_remaining,
-  c.course_code, c.course_name,
+  c.course_code, c.course_name, c.credits, c.course_level,
+  d.department_name AS subject,
   i.first_name AS instructor_first_name, i.last_name AS instructor_last_name,
-  r.building, r.room_number,
-  t.term_name`;
+  r.building, r.room_number, r.campus,
+  t.term_name,
+  (SELECT GROUP_CONCAT(
+            CONCAT(sch.day_of_week, ' ',
+                   TIME_FORMAT(sch.start_time, '%H:%i'), '-', TIME_FORMAT(sch.end_time, '%H:%i'))
+            ORDER BY sch.start_time SEPARATOR ', ')
+     FROM ClassSchedule sch WHERE sch.crn = cs.crn) AS meeting_times`;
 
 const SECTION_JOINS = `
   FROM CourseSections cs
   LEFT JOIN Courses c ON c.course_id = cs.course_id
+  LEFT JOIN Departments d ON d.department_id = c.department_id
   LEFT JOIN Instructors i ON i.instructor_id = cs.instructor_id
   LEFT JOIN Rooms r ON r.room_id = cs.room_id
   LEFT JOIN AcademicTerms t ON t.term_id = cs.term_id`;
 
-const repo = baseRepository('CourseSections', 'section_id', [
+const repo = baseRepository('CourseSections', 'crn', [
   'course_id',
   'instructor_id',
   'term_id',
@@ -29,22 +36,42 @@ const repo = baseRepository('CourseSections', 'section_id', [
   'room_id',
   'delivery_mode',
   'status',
+  'parent_crn',
 ]);
 
-// section listing with filters: course, term, and availability (US-19)
+// section listing for the registration table, with filters (US-02/03/19/20)
 repo.search = (filters = {}) => {
-  const { courseId, termId, availableOnly } = filters;
   const where = [];
   const params = [];
-  if (courseId) {
+  if (filters.q) {
+    where.push('(c.course_code LIKE ? OR c.course_name LIKE ?)');
+    params.push(`%${filters.q}%`, `%${filters.q}%`);
+  }
+  if (filters.courseId) {
     where.push('cs.course_id = ?');
-    params.push(Number(courseId));
+    params.push(Number(filters.courseId));
   }
-  if (termId) {
+  if (filters.termId) {
     where.push('cs.term_id = ?');
-    params.push(Number(termId));
+    params.push(Number(filters.termId));
   }
-  if (availableOnly === 'true' || availableOnly === true) {
+  if (filters.level) {
+    where.push('c.course_level = ?');
+    params.push(Number(filters.level));
+  }
+  if (filters.departmentId) {
+    where.push('c.department_id = ?');
+    params.push(Number(filters.departmentId));
+  }
+  if (filters.facultyId) {
+    where.push('d.faculty_id = ?');
+    params.push(Number(filters.facultyId));
+  }
+  if (filters.parentCrn) {
+    where.push('cs.parent_crn = ?');
+    params.push(Number(filters.parentCrn));
+  }
+  if (filters.availableOnly === 'true' || filters.availableOnly === true) {
     where.push('(cs.capacity IS NULL OR cs.enrolled_count < cs.capacity)');
   }
   const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
@@ -58,36 +85,42 @@ repo.search = (filters = {}) => {
   );
 };
 
-repo.findDetail = async (sectionId) => {
+repo.findDetail = async (crn) => {
   const section = await db.queryOne(
-    `SELECT ${SECTION_COLUMNS} ${SECTION_JOINS} WHERE cs.section_id = ?`,
-    [sectionId]
+    `SELECT ${SECTION_COLUMNS} ${SECTION_JOINS} WHERE cs.crn = ?`,
+    [crn]
   );
   if (!section) {
     return null;
   }
   section.schedule = await db.query(
-    'SELECT schedule_id, day_of_week, start_time, end_time FROM ClassSchedule WHERE section_id = ?',
-    [sectionId]
+    'SELECT schedule_id, day_of_week, start_time, end_time FROM ClassSchedule WHERE crn = ?',
+    [crn]
+  );
+  // linked labs or tutorials for the "Select Lab" picker
+  section.labs = await db.query(
+    `SELECT ${SECTION_COLUMNS} ${SECTION_JOINS} WHERE cs.parent_crn = ?`,
+    [crn]
   );
   return section;
 };
 
-repo.findSeats = (sectionId) =>
+repo.findSeats = (crn) =>
   db.queryOne(
     `SELECT capacity, enrolled_count, (capacity - enrolled_count) AS seats_remaining
-       FROM CourseSections WHERE section_id = ?`,
-    [sectionId]
+       FROM CourseSections WHERE crn = ?`,
+    [crn]
   );
 
-repo.findEnrolledStudents = (sectionId) =>
+repo.findEnrolledStudents = (crn) =>
   db.query(
-    `SELECT s.student_id, s.first_name, s.last_name, s.student_email, e.status, e.enrollment_date
+    `SELECT s.student_id, s.first_name, s.last_name, a.email, e.status, e.enrollment_date
        FROM Enrollments e
        JOIN Students s ON s.student_id = e.student_id
-      WHERE e.section_id = ? AND e.status = 'Registered'
+       LEFT JOIN Accounts a ON a.account_id = s.account_id
+      WHERE e.crn = ? AND e.status = 'Registered'
       ORDER BY s.last_name, s.first_name`,
-    [sectionId]
+    [crn]
   );
 
 module.exports = repo;

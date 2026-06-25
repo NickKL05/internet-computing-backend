@@ -3,6 +3,7 @@
 const crudService = require('./crudService');
 const repo = require('../repositories/studentRepository');
 const waitlistRepo = require('../repositories/waitlistRepository');
+const registrationService = require('./registrationService');
 const ApiError = require('../utils/ApiError');
 
 const service = crudService(repo, 'Student');
@@ -28,6 +29,12 @@ service.enrollments = async (studentId) => {
 service.waitlist = async (studentId) => {
   await service.profile(studentId);
   return waitlistRepo.findByStudent(studentId);
+};
+
+// whether a section conflicts with the student's current registrations (US-06/18)
+service.conflicts = async (studentId, crn) => {
+  await service.profile(studentId);
+  return registrationService.conflictsWithRegistered(studentId, crn);
 };
 
 service.degreeProgress = async (studentId) => {

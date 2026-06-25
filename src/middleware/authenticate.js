@@ -32,7 +32,9 @@ const authenticate = asyncHandler(async (req, res, next) => {
   req.user = {
     accountId: session.account_id,
     role: session.role,
-    username: session.username,
+    email: session.email,
+    firstName: session.first_name,
+    lastName: session.last_name,
     studentId: session.student_id,
     adminId: session.admin_id,
   };

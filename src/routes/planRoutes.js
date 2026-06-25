@@ -12,7 +12,7 @@ router.get('/', planController.list);
 router.get('/:id', planController.getById);
 router.post('/', planController.create);
 router.post('/:id/items', planController.addItem);
-router.delete('/:id/items/:sectionId', planController.removeItem);
+router.delete('/:id/items/:crn', planController.removeItem);
 router.post('/:id/submit', planController.submit);
 
 module.exports = router;

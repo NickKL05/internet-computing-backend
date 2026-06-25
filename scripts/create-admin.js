@@ -1,34 +1,40 @@
 'use strict';
 
-// usage: npm run admin:create -- <username> <password> [firstName] [lastName] [email]
+// usage: npm run admin:create -- <email> <password> [firstName] [lastName]
 
 const db = require('../src/db');
 const authService = require('../src/services/authService');
+const { isEmail } = require('../src/utils/validate');
 const logger = require('../src/utils/logger');
 
 async function main() {
-  const [username, password, firstName, lastName, email] = process.argv.slice(2);
+  const [email, password, firstName, lastName] = process.argv.slice(2);
 
-  if (!username || !password) {
-    logger.error('Usage: npm run admin:create -- <username> <password> [firstName] [lastName] [email]');
+  if (!email || !password) {
+    logger.error('Usage: npm run admin:create -- <email> <password> [firstName] [lastName]');
+    process.exitCode = 1;
+    return;
+  }
+  if (!isEmail(email)) {
+    logger.error('The first argument must be a valid email address.');
     process.exitCode = 1;
     return;
   }
 
-  const existing = await authService.findAccountByUsername(username);
+  const existing = await authService.findAccountByEmail(email);
   if (existing) {
-    logger.error(`An account with username "${username}" already exists.`);
+    logger.error(`An account with email "${email}" already exists.`);
     process.exitCode = 1;
     return;
   }
 
   const { accountId, adminId } = await authService.createAdminAccount({
-    username,
+    email,
     password,
-    profile: { firstName, lastName, email },
+    profile: { firstName, lastName },
   });
 
-  logger.info(`Created admin "${username}" (account_id ${accountId}, admin_id ${adminId}).`);
+  logger.info(`Created admin "${email}" (account_id ${accountId}, admin_id ${adminId}).`);
 }
 
 main()

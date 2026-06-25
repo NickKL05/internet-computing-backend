@@ -15,6 +15,12 @@ const withSelfCheck = (fn) =>
     res.json({ data: await fn(id) });
   });
 
+const conflicts = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'student id');
+  ensureSelfOrAdmin(req, id);
+  res.json({ data: await service.conflicts(id, parseId(req.query.crn, 'crn')) });
+});
+
 module.exports = {
   ...base,
   getById: withSelfCheck((id) => service.profile(id)),
@@ -22,4 +28,5 @@ module.exports = {
   enrollments: withSelfCheck((id) => service.enrollments(id)),
   waitlist: withSelfCheck((id) => service.waitlist(id)),
   degreeProgress: withSelfCheck((id) => service.degreeProgress(id)),
+  conflicts,
 };

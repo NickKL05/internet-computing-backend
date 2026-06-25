@@ -18,11 +18,11 @@ const create = asyncHandler(async (req, res) => {
 });
 
 const addItem = asyncHandler(async (req, res) => {
-  requireFields(req.body, ['sectionId']);
+  requireFields(req.body, ['crn']);
   const data = await service.addItem(
     parseId(req.params.id, 'plan id'),
     requireStudent(req),
-    parseId(req.body.sectionId, 'sectionId')
+    parseId(req.body.crn, 'crn')
   );
   res.status(201).json({ data });
 });
@@ -31,7 +31,7 @@ const removeItem = asyncHandler(async (req, res) => {
   const data = await service.removeItem(
     parseId(req.params.id, 'plan id'),
     requireStudent(req),
-    parseId(req.params.sectionId, 'section id')
+    parseId(req.params.crn, 'crn')
   );
   res.json({ data });
 });

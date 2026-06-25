@@ -17,12 +17,12 @@ service.get = async (id) => {
   return enrollment;
 };
 
-// raw row (student_id, section_id) used for ownership checks before drop/swap
+// raw row (student_id, crn) used for ownership checks before drop/swap
 service.findRaw = (id) => repo.findById(id);
 
-service.register = (studentId, sectionId) => registrationService.registerSection(studentId, sectionId);
-service.drop = (studentId, sectionId) => registrationService.dropSection(studentId, sectionId);
-service.swap = (studentId, fromSectionId, toSectionId) =>
-  registrationService.swapSection(studentId, fromSectionId, toSectionId);
+service.register = (studentId, crn) => registrationService.registerSection(studentId, crn);
+service.drop = (studentId, crn) => registrationService.dropSection(studentId, crn);
+service.swap = (studentId, fromCrn, toCrn) =>
+  registrationService.swapSection(studentId, fromCrn, toCrn);
 
 module.exports = service;

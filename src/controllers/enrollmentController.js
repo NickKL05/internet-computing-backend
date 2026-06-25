@@ -25,12 +25,12 @@ const getById = asyncHandler(async (req, res) => {
 });
 
 const register = asyncHandler(async (req, res) => {
-  requireFields(req.body, ['sectionId']);
+  requireFields(req.body, ['crn']);
   const studentId = targetStudentId(req);
   if (!studentId) {
     throw ApiError.forbidden('This action is only available to student accounts');
   }
-  const result = await service.register(studentId, parseId(req.body.sectionId, 'sectionId'));
+  const result = await service.register(studentId, parseId(req.body.crn, 'crn'));
   res.status(result.result === 'failed' ? 409 : 201).json({ data: result });
 });
 
@@ -40,11 +40,11 @@ const drop = asyncHandler(async (req, res) => {
     throw ApiError.notFound('Enrollment not found');
   }
   ensureSelfOrAdmin(req, enrollment.student_id);
-  res.json({ data: await service.drop(enrollment.student_id, enrollment.section_id) });
+  res.json({ data: await service.drop(enrollment.student_id, enrollment.crn) });
 });
 
 const swap = asyncHandler(async (req, res) => {
-  requireFields(req.body, ['toSectionId']);
+  requireFields(req.body, ['toCrn']);
   const enrollment = await service.findRaw(parseId(req.params.id, 'enrollment id'));
   if (!enrollment) {
     throw ApiError.notFound('Enrollment not found');
@@ -52,8 +52,8 @@ const swap = asyncHandler(async (req, res) => {
   ensureSelfOrAdmin(req, enrollment.student_id);
   const result = await service.swap(
     enrollment.student_id,
-    enrollment.section_id,
-    parseId(req.body.toSectionId, 'toSectionId')
+    enrollment.crn,
+    parseId(req.body.toCrn, 'toCrn')
   );
   res.status(result.result === 'failed' ? 409 : 200).json({ data: result });
 });

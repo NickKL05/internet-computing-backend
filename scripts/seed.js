@@ -1,6 +1,6 @@
 'use strict';
 
-// seeds sample data (npm run db:seed). student logins use Password123!, admins use Admin123!
+// seeds sample data (npm run db:seed). students log in with Password123!, admins with Admin123!
 
 const db = require('../src/db');
 const authService = require('../src/services/authService');
@@ -26,12 +26,12 @@ const programs = [
 ];
 
 const rooms = [
-  { key: 'LH1001', building: 'Lazaridis Hall', number: '1001', capacity: 120 },
-  { key: 'LH2002', building: 'Lazaridis Hall', number: '2002', capacity: 80 },
-  { key: 'BA201', building: 'Bricker Academic', number: '201', capacity: 60 },
-  { key: 'BA304', building: 'Bricker Academic', number: '304', capacity: 45 },
-  { key: 'SN1001', building: 'Science Building', number: 'N1001', capacity: 200 },
-  { key: 'AA102', building: 'Arts Building', number: 'A102', capacity: 90 },
+  { key: 'LH1001', building: 'Lazaridis Hall', number: '1001', capacity: 120, campus: 'Waterloo' },
+  { key: 'LH2002', building: 'Lazaridis Hall', number: '2002', capacity: 80, campus: 'Waterloo' },
+  { key: 'BA201', building: 'Bricker Academic', number: '201', capacity: 60, campus: 'Waterloo' },
+  { key: 'BA304', building: 'Bricker Academic', number: '304', capacity: 45, campus: 'Waterloo' },
+  { key: 'SN1001', building: 'Science Building', number: 'N1001', capacity: 200, campus: 'Waterloo' },
+  { key: 'AA102', building: 'Arts Building', number: 'A102', capacity: 90, campus: 'Brantford' },
 ];
 
 const instructors = [
@@ -81,6 +81,8 @@ const prerequisites = [
 
 const antirequisites = [['CP104', 'CP102']];
 
+const corequisites = [['MA238', 'MA122']];
+
 const sections = [
   { key: 'CP104-A-F', code: 'CP104', sec: 'A', instr: 'hopper', term: 'Fall 2026', room: 'LH1001', cap: 120, status: 'Open', schedule: [['Monday', '09:00:00', '10:20:00'], ['Wednesday', '09:00:00', '10:20:00']] },
   { key: 'CP164-A-F', code: 'CP164', sec: 'A', instr: 'lovelace', term: 'Fall 2026', room: 'LH1001', cap: 120, status: 'Open', schedule: [['Monday', '10:30:00', '11:50:00'], ['Wednesday', '10:30:00', '11:50:00']] },
@@ -96,6 +98,7 @@ const sections = [
   { key: 'PS101-A-F', code: 'PS101', sec: 'A', instr: 'james', term: 'Fall 2026', room: 'AA102', cap: 90, status: 'Open', schedule: [['Tuesday', '11:00:00', '12:20:00'], ['Thursday', '11:00:00', '12:20:00']] },
   { key: 'PS261-A-F', code: 'PS261', sec: 'A', instr: 'james', term: 'Fall 2026', room: 'AA102', cap: 90, status: 'Open', schedule: [['Monday', '15:00:00', '16:20:00'], ['Wednesday', '15:00:00', '16:20:00']] },
   { key: 'EN101-A-F', code: 'EN101', sec: 'A', instr: 'austen', term: 'Fall 2026', room: 'AA102', cap: 90, status: 'Open', schedule: [['Tuesday', '15:00:00', '16:20:00'], ['Thursday', '15:00:00', '16:20:00']] },
+  { key: 'CP264-LAB-F', code: 'CP264', sec: 'L1', instr: 'turing', term: 'Fall 2026', room: 'BA201', cap: 30, status: 'Open', parent: 'CP264-A-F', schedule: [['Friday', '10:00:00', '11:50:00']] },
   { key: 'CP104-A-W', code: 'CP104', sec: 'A', instr: 'hopper', term: 'Winter 2026', room: 'LH1001', cap: 120, status: 'Closed', schedule: [['Monday', '09:00:00', '10:20:00'], ['Wednesday', '09:00:00', '10:20:00']] },
   { key: 'CP164-A-W', code: 'CP164', sec: 'A', instr: 'lovelace', term: 'Winter 2026', room: 'LH1001', cap: 120, status: 'Closed', schedule: [['Tuesday', '10:00:00', '11:20:00']] },
   { key: 'CP264-A-W', code: 'CP264', sec: 'A', instr: 'turing', term: 'Winter 2026', room: 'BA201', cap: 60, status: 'Closed', schedule: [['Tuesday', '13:00:00', '14:20:00']] },
@@ -106,16 +109,16 @@ const sections = [
 ];
 
 const students = [
-  { username: 'teststudent', first: 'Test', last: 'Student', email: 'teststudent@example.edu', phone: '5195550001', dob: '2003-04-15', program: 'Computer Science', gpa: 3.5 },
-  { username: 'astudent', first: 'Alice', last: 'Anderson', email: 'aanderson@example.edu', phone: '5195550002', dob: '2002-09-01', program: 'Computer Science', gpa: 3.9 },
-  { username: 'bstudent', first: 'Bob', last: 'Brown', email: 'bbrown@example.edu', phone: '5195550003', dob: '2003-11-20', program: 'Computer Science', gpa: 2.1 },
-  { username: 'cstudent', first: 'Carol', last: 'Clark', email: 'cclark@example.edu', phone: '5195550004', dob: '2004-02-10', program: 'Mathematics', gpa: 3.2 },
-  { username: 'dstudent', first: 'Dan', last: 'Davis', email: 'ddavis@example.edu', phone: '5195550005', dob: '2003-07-07', program: 'Psychology', gpa: 3.0 },
+  { key: 'teststudent', email: 'teststudent@example.edu', first: 'Test', last: 'Student', phone: '5195550001', dob: '2003-04-15', program: 'Computer Science', gpa: 3.5 },
+  { key: 'astudent', email: 'aanderson@example.edu', first: 'Alice', last: 'Anderson', phone: '5195550002', dob: '2002-09-01', program: 'Computer Science', gpa: 3.9 },
+  { key: 'bstudent', email: 'bbrown@example.edu', first: 'Bob', last: 'Brown', phone: '5195550003', dob: '2003-11-20', program: 'Computer Science', gpa: 2.1 },
+  { key: 'cstudent', email: 'cclark@example.edu', first: 'Carol', last: 'Clark', phone: '5195550004', dob: '2004-02-10', program: 'Mathematics', gpa: 3.2 },
+  { key: 'dstudent', email: 'ddavis@example.edu', first: 'Dan', last: 'Davis', phone: '5195550005', dob: '2003-07-07', program: 'Psychology', gpa: 3.0 },
 ];
 
 const admins = [
-  { username: 'admin', first: 'Site', last: 'Admin', email: 'admin@example.edu' },
-  { username: 'registrar', first: 'Reg', last: 'Istrar', email: 'registrar@example.edu' },
+  { email: 'admin@example.edu', first: 'Site', last: 'Admin' },
+  { email: 'registrar@example.edu', first: 'Reg', last: 'Istrar' },
 ];
 
 const completed = [
@@ -201,8 +204,8 @@ async function main() {
     const roomId = {};
     for (const r of rooms) {
       roomId[r.key] = await insert(
-        'INSERT INTO Rooms (building, room_number, capacity) VALUES (?, ?, ?)',
-        [r.building, r.number, r.capacity]
+        'INSERT INTO Rooms (building, room_number, capacity, campus) VALUES (?, ?, ?, ?)',
+        [r.building, r.number, r.capacity, r.campus]
       );
     }
 
@@ -248,19 +251,26 @@ async function main() {
       ]);
     }
 
+    for (const [course, coreq] of corequisites) {
+      await insert('INSERT INTO Corequisites (course_id, corequisite_course_id) VALUES (?, ?)', [
+        courseId[course],
+        courseId[coreq],
+      ]);
+    }
+
     const sectionId = {};
     for (const s of sections) {
       const id = await insert(
         `INSERT INTO CourseSections
            (course_id, instructor_id, term_id, section_number, capacity, enrolled_count,
-            room_id, delivery_mode, status)
-         VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-        [courseId[s.code], instructorId[s.instr], termId[s.term], s.sec, s.cap, roomId[s.room], s.mode || 'In-Person', s.status]
+            room_id, delivery_mode, status, parent_crn)
+         VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+        [courseId[s.code], instructorId[s.instr], termId[s.term], s.sec, s.cap, roomId[s.room], s.mode || 'In-Person', s.status, s.parent ? sectionId[s.parent] : null]
       );
       sectionId[s.key] = id;
       for (const [day, start, end] of s.schedule) {
         await insert(
-          'INSERT INTO ClassSchedule (section_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)',
+          'INSERT INTO ClassSchedule (crn, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)',
           [id, day, start, end]
         );
       }
@@ -269,38 +279,38 @@ async function main() {
     const studentId = {};
     for (const st of students) {
       const accountId = await insert(
-        'INSERT INTO Accounts (username, password_hash) VALUES (?, ?)',
-        [st.username, studentHash]
+        'INSERT INTO Accounts (email, password_hash) VALUES (?, ?)',
+        [st.email, studentHash]
       );
-      studentId[st.username] = await insert(
+      studentId[st.key] = await insert(
         `INSERT INTO Students
-           (account_id, first_name, last_name, student_email, student_phone, date_of_birth, program_id, GPA)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [accountId, st.first, st.last, st.email, st.phone, st.dob, programId[st.program], st.gpa]
+           (account_id, first_name, last_name, student_phone, date_of_birth, program_id, GPA)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [accountId, st.first, st.last, st.phone, st.dob, programId[st.program], st.gpa]
       );
     }
 
     for (const ad of admins) {
       const accountId = await insert(
-        'INSERT INTO Accounts (username, password_hash) VALUES (?, ?)',
-        [ad.username, adminHash]
+        'INSERT INTO Accounts (email, password_hash) VALUES (?, ?)',
+        [ad.email, adminHash]
       );
       await insert(
-        'INSERT INTO Administrators (account_id, first_name, last_name, email) VALUES (?, ?, ?, ?)',
-        [accountId, ad.first, ad.last, ad.email]
+        'INSERT INTO Administrators (account_id, first_name, last_name) VALUES (?, ?, ?)',
+        [accountId, ad.first, ad.last]
       );
     }
 
     for (const e of completed) {
       await insert(
-        'INSERT INTO Enrollments (student_id, section_id, enrollment_date, final_grade, status) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO Enrollments (student_id, crn, enrollment_date, final_grade, status) VALUES (?, ?, ?, ?, ?)',
         [studentId[e.student], sectionId[e.section], '2026-01-10', e.grade, 'Completed']
       );
     }
 
     for (const e of registered) {
       await insert(
-        'INSERT INTO Enrollments (student_id, section_id, enrollment_date, final_grade, status) VALUES (?, ?, ?, NULL, ?)',
+        'INSERT INTO Enrollments (student_id, crn, enrollment_date, final_grade, status) VALUES (?, ?, ?, NULL, ?)',
         [studentId[e.student], sectionId[e.section], '2026-06-10', 'Registered']
       );
     }
@@ -309,7 +319,7 @@ async function main() {
       `UPDATE CourseSections cs
           SET enrolled_count = (
             SELECT COUNT(*) FROM Enrollments e
-             WHERE e.section_id = cs.section_id AND e.status = 'Registered'
+             WHERE e.crn = cs.crn AND e.status = 'Registered'
           )`
     );
 
@@ -339,7 +349,7 @@ async function main() {
         [studentId[pl.student], pl.name]
       );
       for (const key of pl.items) {
-        await insert('INSERT INTO CoursePlanItems (plan_id, section_id) VALUES (?, ?)', [
+        await insert('INSERT INTO CoursePlanItems (plan_id, crn) VALUES (?, ?)', [
           planId,
           sectionId[key],
         ]);
@@ -355,8 +365,8 @@ async function main() {
   });
 
   logger.info('Seed complete.');
-  logger.info(`Students (password ${STUDENT_PASSWORD}): ${students.map((s) => s.username).join(', ')}`);
-  logger.info(`Admins (password ${ADMIN_PASSWORD}): ${admins.map((a) => a.username).join(', ')}`);
+  logger.info(`Students (password ${STUDENT_PASSWORD}): ${students.map((s) => s.email).join(', ')}`);
+  logger.info(`Admins (password ${ADMIN_PASSWORD}): ${admins.map((a) => a.email).join(', ')}`);
 }
 
 main()

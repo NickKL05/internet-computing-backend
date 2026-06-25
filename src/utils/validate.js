@@ -16,6 +16,19 @@ function parsePagination(query = {}) {
   return { limit, offset };
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isEmail(value) {
+  return typeof value === 'string' && EMAIL_PATTERN.test(value);
+}
+
+function requireEmail(value, name = 'email') {
+  if (!isEmail(value)) {
+    throw ApiError.badRequest(`A valid ${name} is required`, { code: 'VALIDATION_ERROR' });
+  }
+  return value;
+}
+
 function requireFields(body, fields) {
   const missing = fields.filter(
     (f) => body[f] === undefined || body[f] === null || body[f] === ''
@@ -28,4 +41,4 @@ function requireFields(body, fields) {
   }
 }
 
-module.exports = { parseId, parsePagination, requireFields };
+module.exports = { parseId, parsePagination, requireFields, isEmail, requireEmail };

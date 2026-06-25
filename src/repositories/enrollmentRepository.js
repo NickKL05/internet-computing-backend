@@ -4,17 +4,17 @@ const baseRepository = require('./baseRepository');
 const db = require('../db');
 
 const DETAIL = `
-  SELECT e.enrollment_id, e.student_id, e.section_id, e.enrollment_date, e.final_grade, e.status,
+  SELECT e.enrollment_id, e.student_id, e.crn, e.enrollment_date, e.final_grade, e.status,
          s.first_name, s.last_name,
          cs.section_number, c.course_id, c.course_code, c.course_name
     FROM Enrollments e
     JOIN Students s ON s.student_id = e.student_id
-    JOIN CourseSections cs ON cs.section_id = e.section_id
+    JOIN CourseSections cs ON cs.crn = e.crn
     JOIN Courses c ON c.course_id = cs.course_id`;
 
 const repo = baseRepository('Enrollments', 'enrollment_id', [
   'student_id',
-  'section_id',
+  'crn',
   'enrollment_date',
   'final_grade',
   'status',

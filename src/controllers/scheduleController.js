@@ -9,7 +9,7 @@ const base = crudController(service, 'Schedule entry');
 
 module.exports = {
   ...base,
-  bySection: asyncHandler(async (req, res) => {
-    res.json({ data: await service.bySection(parseId(req.params.sectionId, 'section id')) });
+  byCrn: asyncHandler(async (req, res) => {
+    res.json({ data: await service.byCrn(parseId(req.params.crn, 'crn')) });
   }),
 };

@@ -10,16 +10,16 @@ const service = crudService(repo, 'Waitlist entry');
 service.bySection = (sectionId) => repo.findBySection(sectionId);
 service.byStudent = (studentId) => repo.findByStudent(studentId);
 
-service.add = async (studentId, sectionId) => {
+service.add = async (studentId, crn) => {
   const next = await db.queryOne(
-    'SELECT COALESCE(MAX(position), 0) + 1 AS nextPos FROM Waitlists WHERE section_id = ?',
-    [sectionId]
+    'SELECT COALESCE(MAX(position), 0) + 1 AS nextPos FROM Waitlists WHERE crn = ?',
+    [crn]
   );
   const today = new Date().toISOString().slice(0, 10);
   try {
     return await repo.create({
       student_id: studentId,
-      section_id: sectionId,
+      crn,
       position: next.nextPos,
       date_joined: today,
     });

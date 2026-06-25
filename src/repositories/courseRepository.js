@@ -80,6 +80,18 @@ repo.findDetail = async (courseId) => {
       WHERE a.antirequisite_course_id = ?`,
     [courseId, courseId]
   );
+  course.corequisites = await db.query(
+    `SELECT c.course_id, c.course_code, c.course_name
+       FROM Corequisites co
+       JOIN Courses c ON c.course_id = co.corequisite_course_id
+      WHERE co.course_id = ?
+      UNION
+     SELECT c.course_id, c.course_code, c.course_name
+       FROM Corequisites co
+       JOIN Courses c ON c.course_id = co.course_id
+      WHERE co.corequisite_course_id = ?`,
+    [courseId, courseId]
+  );
   return course;
 };
 

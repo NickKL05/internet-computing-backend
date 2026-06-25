@@ -22,22 +22,28 @@ async function verifyPassword(plainPassword, passwordHash) {
   return bcrypt.compare(plainPassword, passwordHash);
 }
 
-async function findAccountByUsername(username) {
+async function findAccountByEmail(email) {
   return db.queryOne(
-    `SELECT a.account_id, a.username, a.password_hash, a.last_login, a.account_status,
-            st.student_id, ad.admin_id, ${ROLE_EXPRESSION} AS role
+    `SELECT a.account_id, a.email, a.password_hash, a.last_login, a.account_status,
+            st.student_id, ad.admin_id,
+            COALESCE(st.first_name, ad.first_name) AS first_name,
+            COALESCE(st.last_name, ad.last_name) AS last_name,
+            ${ROLE_EXPRESSION} AS role
        FROM Accounts a
        LEFT JOIN Students st ON st.account_id = a.account_id
        LEFT JOIN Administrators ad ON ad.account_id = a.account_id
-      WHERE a.username = ?`,
-    [username]
+      WHERE a.email = ?`,
+    [email]
   );
 }
 
 async function findAccountById(accountId) {
   return db.queryOne(
-    `SELECT a.account_id, a.username, a.last_login, a.account_status,
-            st.student_id, ad.admin_id, ${ROLE_EXPRESSION} AS role
+    `SELECT a.account_id, a.email, a.last_login, a.account_status,
+            st.student_id, ad.admin_id,
+            COALESCE(st.first_name, ad.first_name) AS first_name,
+            COALESCE(st.last_name, ad.last_name) AS last_name,
+            ${ROLE_EXPRESSION} AS role
        FROM Accounts a
        LEFT JOIN Students st ON st.account_id = a.account_id
        LEFT JOIN Administrators ad ON ad.account_id = a.account_id
@@ -46,24 +52,22 @@ async function findAccountById(accountId) {
   );
 }
 
-async function createStudentAccount({ username, password, profile = {} }) {
+async function createStudentAccount({ email, password, profile = {} }) {
   const passwordHash = await hashPassword(password);
   return db.withTransaction(async (conn) => {
     const [account] = await conn.execute(
-      'INSERT INTO Accounts (username, password_hash) VALUES (?, ?)',
-      [username, passwordHash]
+      'INSERT INTO Accounts (email, password_hash) VALUES (?, ?)',
+      [email, passwordHash]
     );
     const accountId = account.insertId;
     const [student] = await conn.execute(
       `INSERT INTO Students
-         (account_id, first_name, last_name, student_email, student_phone,
-          date_of_birth, program_id, GPA)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (account_id, first_name, last_name, student_phone, date_of_birth, program_id, GPA)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         accountId,
         profile.firstName || null,
         profile.lastName || null,
-        profile.email || null,
         profile.phone || null,
         profile.dateOfBirth || null,
         profile.programId || null,
@@ -74,18 +78,17 @@ async function createStudentAccount({ username, password, profile = {} }) {
   });
 }
 
-async function createAdminAccount({ username, password, profile = {} }) {
+async function createAdminAccount({ email, password, profile = {} }) {
   const passwordHash = await hashPassword(password);
   return db.withTransaction(async (conn) => {
     const [account] = await conn.execute(
-      'INSERT INTO Accounts (username, password_hash) VALUES (?, ?)',
-      [username, passwordHash]
+      'INSERT INTO Accounts (email, password_hash) VALUES (?, ?)',
+      [email, passwordHash]
     );
     const accountId = account.insertId;
     const [admin] = await conn.execute(
-      `INSERT INTO Administrators (account_id, first_name, last_name, email)
-       VALUES (?, ?, ?, ?)`,
-      [accountId, profile.firstName || null, profile.lastName || null, profile.email || null]
+      'INSERT INTO Administrators (account_id, first_name, last_name) VALUES (?, ?, ?)',
+      [accountId, profile.firstName || null, profile.lastName || null]
     );
     return { accountId, adminId: admin.insertId };
   });
@@ -98,7 +101,7 @@ async function recordLogin(accountId) {
 module.exports = {
   hashPassword,
   verifyPassword,
-  findAccountByUsername,
+  findAccountByEmail,
   findAccountById,
   createStudentAccount,
   createAdminAccount,

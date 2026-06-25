@@ -23,10 +23,10 @@ async function createForStudent(studentId, planName) {
   return plan;
 }
 
-async function addItem(planId, studentId, sectionId) {
+async function addItem(planId, studentId, crn) {
   await getForStudent(planId, studentId);
   try {
-    await repo.addItem(planId, sectionId);
+    await repo.addItem(planId, crn);
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       throw ApiError.conflict('Section is already in this plan');
@@ -36,9 +36,9 @@ async function addItem(planId, studentId, sectionId) {
   return getForStudent(planId, studentId);
 }
 
-async function removeItem(planId, studentId, sectionId) {
+async function removeItem(planId, studentId, crn) {
   await getForStudent(planId, studentId);
-  const removed = await repo.removeItem(planId, sectionId);
+  const removed = await repo.removeItem(planId, crn);
   if (!removed) {
     throw ApiError.notFound('Section is not in this plan');
   }

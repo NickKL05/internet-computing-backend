@@ -15,7 +15,7 @@ const getById = asyncHandler(async (req, res) => {
 });
 
 const bySection = asyncHandler(async (req, res) => {
-  res.json({ data: await service.bySection(parseId(req.params.sectionId, 'section id')) });
+  res.json({ data: await service.bySection(parseId(req.params.crn, 'crn')) });
 });
 
 const byStudent = asyncHandler(async (req, res) => {
@@ -25,7 +25,7 @@ const byStudent = asyncHandler(async (req, res) => {
 });
 
 const addToWaitlist = asyncHandler(async (req, res) => {
-  requireFields(req.body, ['sectionId']);
+  requireFields(req.body, ['crn']);
   const studentId =
     req.user.role === 'admin' && req.body.studentId
       ? parseId(req.body.studentId, 'studentId')
@@ -33,7 +33,7 @@ const addToWaitlist = asyncHandler(async (req, res) => {
   if (!studentId) {
     throw ApiError.forbidden('This action is only available to student accounts');
   }
-  res.status(201).json({ data: await service.add(studentId, parseId(req.body.sectionId, 'sectionId')) });
+  res.status(201).json({ data: await service.add(studentId, parseId(req.body.crn, 'crn')) });
 });
 
 const remove = asyncHandler(async (req, res) => {

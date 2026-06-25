@@ -66,8 +66,9 @@ registrations, an active hold, degree requirements, plans, and saved filters.
 Logins (students share one password, admins another):
 
 ```
-students: teststudent, astudent, bstudent, cstudent, dstudent   password: Password123!
-admins:   admin, registrar                                       password: Admin123!
+students: teststudent@example.edu, aanderson@example.edu, bbrown@example.edu,
+          cclark@example.edu, ddavis@example.edu                 password: Password123!
+admins:   admin@example.edu, registrar@example.edu               password: Admin123!
 ```
 
 Some scenarios baked into the data: `CP312` (Fall) is full so registering it
@@ -78,7 +79,7 @@ work against.
 To create an additional administrator at any time:
 
 ```bash
-npm run admin:create -- <username> <password> [firstName] [lastName] [email]
+npm run admin:create -- <email> <password> [firstName] [lastName]
 ```
 
 ## Environment variables
@@ -146,7 +147,7 @@ The flow:
    extends the session expiry. Sessions expire after 30 minutes of inactivity
    (configurable via `SESSION_INACTIVITY_MINUTES`), per user story US-01.
 
-`req.user` is `{ accountId, role, username, studentId, adminId }`. A role is
+`req.user` is `{ accountId, role, email, firstName, lastName, studentId, adminId }`. A role is
 **derived**, not stored: an account is an `admin` when an `Administrators` row
 references it, otherwise a `student` when a `Students` row does. This keeps the
 schema normalized (no role column that could disagree with the profile tables).
@@ -172,7 +173,7 @@ Access levels below: **public** (no token), **auth** (any signed in user),
 ### Auth
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| POST | `/auth/login` | public | body `{ username, password }`; returns `{ token, expiresAt, user }` |
+| POST | `/auth/login` | public | body `{ email, password }`; returns `{ token, expiresAt, user }` |
 | POST | `/auth/logout` | auth | revokes the current session |
 | GET | `/auth/me` | auth | the current user context |
 
@@ -180,17 +181,17 @@ Access levels below: **public** (no token), **auth** (any signed in user),
 | Method | Path | Access | Notes |
 |---|---|---|---|
 | GET | `/courses` | public | filters: `q`, `level`, `departmentId`, `facultyId`, `limit`, `offset` |
-| GET | `/courses/:id` | public | detail with prerequisites and antirequisites |
+| GET | `/courses/:id` | public | detail with prerequisites, antirequisites, and co-requisites |
 | POST/PUT/DELETE | `/courses[/:id]` | admin | manage courses |
-| GET | `/sections` | public | filters: `courseId`, `termId`, `availableOnly` |
-| GET | `/sections/:id` | public | detail with schedule and seats remaining |
-| GET | `/sections/:id/seats` | public | seat counts |
-| GET | `/sections/:id/students` | admin | section roster |
-| POST/PUT/DELETE | `/sections[/:id]` | admin | manage sections |
+| GET | `/sections` | public | filters: `q`, `courseId`, `termId`, `level`, `facultyId`, `departmentId`, `parentCrn`, `availableOnly`. Each row carries `crn`, credits, subject, campus, seats, and `meeting_times` |
+| GET | `/sections/:crn` | public | detail with schedule, seats remaining, and linked labs |
+| GET | `/sections/:crn/seats` | public | seat counts |
+| GET | `/sections/:crn/students` | admin | section roster |
+| POST/PUT/DELETE | `/sections[/:crn]` | admin | manage sections |
 | GET | `/departments`, `/departments/:id`, `/departments/:id/courses` | public | |
 | GET | `/programs`, `/programs/:id`, `/programs/:id/courses` | public | required courses |
 | GET | `/instructors`, `/instructors/:id`, `/instructors/:id/sections` | public | |
-| GET | `/terms`, `/faculties`, `/faculties/:id/departments`, `/rooms`, `/schedules`, `/schedules/section/:sectionId` | public | writes admin |
+| GET | `/terms`, `/faculties`, `/faculties/:id/departments`, `/rooms`, `/schedules`, `/schedules/section/:crn` | public | writes admin |
 
 ### Students (self or admin)
 | Method | Path | Access | Notes |
@@ -201,18 +202,19 @@ Access levels below: **public** (no token), **auth** (any signed in user),
 | GET | `/students/:id/enrollments` | self/admin | enrollment history |
 | GET | `/students/:id/waitlist` | self/admin | waitlist entries |
 | GET | `/students/:id/degree-progress` | self/admin | completed vs required per requirement |
+| GET | `/students/:id/conflicts?crn=` | self/admin | whether a section conflicts with the student's schedule |
 | POST/PUT/DELETE | `/students[/:id]` | admin | manage students |
 
 ### Registration and waitlists
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| POST | `/enrollments` | auth | body `{ sectionId }`; registers the signed in student |
+| POST | `/enrollments` | auth | body `{ crn }`; registers the signed in student |
 | DELETE | `/enrollments/:id` | self/admin | drop |
-| POST | `/enrollments/:id/switch` | self/admin | body `{ toSectionId }`; swap |
+| POST | `/enrollments/:id/switch` | self/admin | body `{ toCrn }`; swap |
 | GET | `/enrollments` | admin | all enrollments |
 | GET | `/enrollments/:id` | self/admin | one enrollment |
 | PUT | `/enrollments/:id` | admin | set grade or status |
-| POST | `/waitlists` | auth | body `{ sectionId }` |
+| POST | `/waitlists` | auth | body `{ crn }` |
 | DELETE | `/waitlists/:id` | self/admin | leave the waitlist |
 
 Registration actions return `{ result: "registered" | "waitlisted" | "failed", reason? }`.
@@ -224,8 +226,8 @@ A `failed` result responds with HTTP 409 and a reason such as `Prerequisite not 
 |---|---|---|---|
 | GET | `/plans`, `/plans/:id` | student | |
 | POST | `/plans` | student | body `{ planName? }` |
-| POST | `/plans/:id/items` | student | body `{ sectionId }` |
-| DELETE | `/plans/:id/items/:sectionId` | student | |
+| POST | `/plans/:id/items` | student | body `{ crn }` |
+| DELETE | `/plans/:id/items/:crn` | student | |
 | POST | `/plans/:id/submit` | student | registers every section in the plan (US-07) |
 
 ## Registration rules
@@ -245,12 +247,21 @@ thin:
 
 ## Data model note
 
-The original milestone schema kept login data in a `StudentAccounts` table tied
-to `Students`. To support administrators without putting them in a student
-table, the auth tables were normalized into an `Accounts` supertype with
-`Students` and `Administrators` profile tables. If you initialized your database
-from an earlier version, drop and re-run `npm run db:init` (there is no
-production data yet). Flag this change to the data modeling lead.
+The schema has evolved from the original milestone design to match the
+front-end needs, so re-run `npm run db:init` if you initialized from an earlier
+version (there is no production data yet). Changes, all worth flagging to the
+data modeling lead:
+
+- Auth was normalized into an `Accounts` supertype with `Students` and
+  `Administrators` profile tables (login is by email, stored once on `Accounts`).
+- `CourseSections` is keyed by `crn` (the course reference number students
+  register with), and `parent_crn` links a lab or tutorial to its lecture.
+- `Rooms` gained a `campus`, and a `Corequisites` table was added alongside
+  `Prerequisites` and `Antirequisites`.
+
+Still open for a later iteration: prerequisite/co-requisite **admin write**
+endpoints (the add-course form), and a per-class-instance status model for the
+timetable (marking a single date cancelled or moved to remote).
 
 ## Security
 

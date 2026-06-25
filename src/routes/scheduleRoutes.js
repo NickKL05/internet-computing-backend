@@ -8,7 +8,7 @@ const scheduleController = require('../controllers/scheduleController');
 const router = express.Router();
 
 router.get('/', scheduleController.list);
-router.get('/section/:sectionId', scheduleController.bySection);
+router.get('/section/:crn', scheduleController.byCrn);
 router.get('/:id', scheduleController.getById);
 router.post('/', authenticate, authorize('admin'), scheduleController.create);
 router.put('/:id', authenticate, authorize('admin'), scheduleController.update);

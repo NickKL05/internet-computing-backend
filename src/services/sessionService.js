@@ -29,8 +29,10 @@ async function validateSession(token) {
     return null;
   }
   return db.queryOne(
-    `SELECT s.session_id, s.account_id, a.username, a.account_status,
+    `SELECT s.session_id, s.account_id, a.email, a.account_status,
             st.student_id, ad.admin_id,
+            COALESCE(st.first_name, ad.first_name) AS first_name,
+            COALESCE(st.last_name, ad.last_name) AS last_name,
             CASE
               WHEN ad.admin_id IS NOT NULL THEN 'admin'
               WHEN st.student_id IS NOT NULL THEN 'student'

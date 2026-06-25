@@ -26,64 +26,64 @@ function schedulesConflict(entriesA, entriesB) {
   return false;
 }
 
-async function getSchedulesForSections(sectionIds) {
+async function getSchedulesForCrns(crns) {
   const map = new Map();
-  if (!sectionIds || sectionIds.length === 0) {
+  if (!crns || crns.length === 0) {
     return map;
   }
-  const placeholders = sectionIds.map(() => '?').join(', ');
+  const placeholders = crns.map(() => '?').join(', ');
   const rows = await db.query(
-    `SELECT section_id, day_of_week, start_time, end_time
+    `SELECT crn, day_of_week, start_time, end_time
        FROM ClassSchedule
-      WHERE section_id IN (${placeholders})`,
-    sectionIds
+      WHERE crn IN (${placeholders})`,
+    crns
   );
   for (const row of rows) {
-    if (!map.has(row.section_id)) {
-      map.set(row.section_id, []);
+    if (!map.has(row.crn)) {
+      map.set(row.crn, []);
     }
-    map.get(row.section_id).push(row);
+    map.get(row.crn).push(row);
   }
   return map;
 }
 
-async function findConflicts(sectionIds) {
-  const schedules = await getSchedulesForSections(sectionIds);
+async function findConflicts(crns) {
+  const schedules = await getSchedulesForCrns(crns);
   const conflicts = [];
-  for (let i = 0; i < sectionIds.length; i += 1) {
-    for (let j = i + 1; j < sectionIds.length; j += 1) {
-      const a = schedules.get(sectionIds[i]) || [];
-      const b = schedules.get(sectionIds[j]) || [];
+  for (let i = 0; i < crns.length; i += 1) {
+    for (let j = i + 1; j < crns.length; j += 1) {
+      const a = schedules.get(crns[i]) || [];
+      const b = schedules.get(crns[j]) || [];
       if (schedulesConflict(a, b)) {
-        conflicts.push({ sectionA: sectionIds[i], sectionB: sectionIds[j] });
+        conflicts.push({ crnA: crns[i], crnB: crns[j] });
       }
     }
   }
   return conflicts;
 }
 
-async function getRegisteredSectionIds(studentId) {
+async function getRegisteredCrns(studentId) {
   const rows = await db.query(
-    'SELECT section_id FROM Enrollments WHERE student_id = ? AND status = ?',
+    'SELECT crn FROM Enrollments WHERE student_id = ? AND status = ?',
     [studentId, ENROLLMENT.REGISTERED]
   );
-  return rows.map((row) => row.section_id);
+  return rows.map((row) => row.crn);
 }
 
-async function conflictsWithRegistered(studentId, sectionId, options = {}) {
-  const { excludeSectionId = null } = options;
-  const registered = (await getRegisteredSectionIds(studentId)).filter(
-    (id) => id !== sectionId && id !== excludeSectionId
+async function conflictsWithRegistered(studentId, crn, options = {}) {
+  const { excludeCrn = null } = options;
+  const registered = (await getRegisteredCrns(studentId)).filter(
+    (id) => id !== crn && id !== excludeCrn
   );
   if (registered.length === 0) {
-    return { conflict: false, conflictingSectionIds: [] };
+    return { conflict: false, conflictingCrns: [] };
   }
-  const schedules = await getSchedulesForSections([sectionId, ...registered]);
-  const target = schedules.get(sectionId) || [];
-  const conflictingSectionIds = registered.filter((id) =>
+  const schedules = await getSchedulesForCrns([crn, ...registered]);
+  const target = schedules.get(crn) || [];
+  const conflictingCrns = registered.filter((id) =>
     schedulesConflict(target, schedules.get(id) || [])
   );
-  return { conflict: conflictingSectionIds.length > 0, conflictingSectionIds };
+  return { conflict: conflictingCrns.length > 0, conflictingCrns };
 }
 
 async function getMissingPrerequisites(studentId, courseId) {
@@ -94,7 +94,7 @@ async function getMissingPrerequisites(studentId, courseId) {
         AND NOT EXISTS (
           SELECT 1
             FROM Enrollments e
-            JOIN CourseSections cs ON cs.section_id = e.section_id
+            JOIN CourseSections cs ON cs.crn = e.crn
            WHERE e.student_id = ?
              AND cs.course_id = p.required_course_id
              AND ${PASSING}
@@ -108,7 +108,7 @@ async function getBlockingAntirequisites(studentId, courseId) {
   const rows = await db.query(
     `SELECT DISTINCT cs.course_id
        FROM Enrollments e
-       JOIN CourseSections cs ON cs.section_id = e.section_id
+       JOIN CourseSections cs ON cs.crn = e.crn
       WHERE e.student_id = ?
         AND (e.status = ? OR (${PASSING}))
         AND cs.course_id IN (
@@ -122,17 +122,17 @@ async function getBlockingAntirequisites(studentId, courseId) {
 }
 
 async function isRegisteredInCourse(studentId, courseId, options = {}) {
-  const { excludeSectionId = null } = options;
+  const { excludeCrn = null } = options;
   const params = [studentId, courseId, ENROLLMENT.REGISTERED];
   let exclude = '';
-  if (excludeSectionId !== null) {
-    exclude = ' AND e.section_id <> ?';
-    params.push(excludeSectionId);
+  if (excludeCrn !== null) {
+    exclude = ' AND e.crn <> ?';
+    params.push(excludeCrn);
   }
   const row = await db.queryOne(
     `SELECT 1
        FROM Enrollments e
-       JOIN CourseSections cs ON cs.section_id = e.section_id
+       JOIN CourseSections cs ON cs.crn = e.crn
       WHERE e.student_id = ? AND cs.course_id = ? AND e.status = ?${exclude}
       LIMIT 1`,
     params
@@ -147,19 +147,19 @@ async function getActiveHold(studentId) {
   );
 }
 
-async function recordAttempt(executor, studentId, sectionId, result, reason) {
+async function recordAttempt(executor, studentId, crn, result, reason) {
   await executor.execute(
-    `INSERT INTO RegistrationAttempts (student_id, section_id, result, failure_reason)
+    `INSERT INTO RegistrationAttempts (student_id, crn, result, failure_reason)
      VALUES (?, ?, ?, ?)`,
-    [studentId, sectionId, result, reason || null]
+    [studentId, crn, result, reason || null]
   );
 }
 
-async function recordAudit(executor, studentId, sectionId, actionType, details) {
+async function recordAudit(executor, studentId, crn, actionType, details) {
   await executor.execute(
-    `INSERT INTO AuditLog (student_id, action_type, section_id, details)
+    `INSERT INTO AuditLog (student_id, action_type, crn, details)
      VALUES (?, ?, ?, ?)`,
-    [studentId, actionType, sectionId, details || null]
+    [studentId, actionType, crn, details || null]
   );
 }
 
@@ -167,14 +167,14 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function registerSection(studentId, sectionId) {
+async function registerSection(studentId, crn) {
   const section = await db.queryOne(
-    `SELECT cs.section_id, cs.course_id, cs.status,
+    `SELECT cs.crn, cs.course_id, cs.status,
             t.registration_open_date, t.registration_close_date
        FROM CourseSections cs
        LEFT JOIN AcademicTerms t ON t.term_id = cs.term_id
-      WHERE cs.section_id = ?`,
-    [sectionId]
+      WHERE cs.crn = ?`,
+    [crn]
   );
 
   if (!section) {
@@ -182,7 +182,7 @@ async function registerSection(studentId, sectionId) {
   }
 
   const fail = async (reason) => {
-    await recordAttempt(db.pool, studentId, sectionId, RESULT.FAILED, reason);
+    await recordAttempt(db.pool, studentId, crn, RESULT.FAILED, reason);
     return { result: RESULT.FAILED, reason };
   };
 
@@ -214,45 +214,45 @@ async function registerSection(studentId, sectionId) {
     return fail('Antirequisite restriction');
   }
 
-  const { conflict, conflictingSectionIds } = await conflictsWithRegistered(studentId, sectionId);
+  const { conflict, conflictingCrns } = await conflictsWithRegistered(studentId, crn);
   if (conflict) {
-    await recordAttempt(db.pool, studentId, sectionId, RESULT.FAILED, 'Time conflict');
-    return { result: RESULT.FAILED, reason: 'Time conflict', conflictingSectionIds };
+    await recordAttempt(db.pool, studentId, crn, RESULT.FAILED, 'Time conflict');
+    return { result: RESULT.FAILED, reason: 'Time conflict', conflictingCrns };
   }
 
   return db.withTransaction(async (conn) => {
     const [secRows] = await conn.execute(
-      'SELECT capacity, enrolled_count FROM CourseSections WHERE section_id = ? FOR UPDATE',
-      [sectionId]
+      'SELECT capacity, enrolled_count FROM CourseSections WHERE crn = ? FOR UPDATE',
+      [crn]
     );
     const seat = secRows[0];
     const isFull = seat.capacity !== null && seat.enrolled_count >= seat.capacity;
 
     if (isFull) {
       const [already] = await conn.execute(
-        'SELECT position FROM Waitlists WHERE student_id = ? AND section_id = ?',
-        [studentId, sectionId]
+        'SELECT position FROM Waitlists WHERE student_id = ? AND crn = ?',
+        [studentId, crn]
       );
       if (already.length > 0) {
         return { result: RESULT.WAITLISTED, position: already[0].position };
       }
       const [posRows] = await conn.execute(
-        'SELECT COALESCE(MAX(position), 0) + 1 AS nextPos FROM Waitlists WHERE section_id = ?',
-        [sectionId]
+        'SELECT COALESCE(MAX(position), 0) + 1 AS nextPos FROM Waitlists WHERE crn = ?',
+        [crn]
       );
       const position = posRows[0].nextPos;
       await conn.execute(
-        'INSERT INTO Waitlists (student_id, section_id, position, date_joined) VALUES (?, ?, ?, ?)',
-        [studentId, sectionId, position, today]
+        'INSERT INTO Waitlists (student_id, crn, position, date_joined) VALUES (?, ?, ?, ?)',
+        [studentId, crn, position, today]
       );
-      await recordAttempt(conn, studentId, sectionId, RESULT.WAITLISTED, 'Section full');
-      await recordAudit(conn, studentId, sectionId, 'WAITLIST', `Joined waitlist at position ${position}`);
+      await recordAttempt(conn, studentId, crn, RESULT.WAITLISTED, 'Section full');
+      await recordAudit(conn, studentId, crn, 'WAITLIST', `Joined waitlist at position ${position}`);
       return { result: RESULT.WAITLISTED, position };
     }
 
     const [existing] = await conn.execute(
-      'SELECT enrollment_id FROM Enrollments WHERE student_id = ? AND section_id = ?',
-      [studentId, sectionId]
+      'SELECT enrollment_id FROM Enrollments WHERE student_id = ? AND crn = ?',
+      [studentId, crn]
     );
     if (existing.length > 0) {
       await conn.execute(
@@ -261,16 +261,16 @@ async function registerSection(studentId, sectionId) {
       );
     } else {
       await conn.execute(
-        'INSERT INTO Enrollments (student_id, section_id, enrollment_date, status) VALUES (?, ?, ?, ?)',
-        [studentId, sectionId, today, ENROLLMENT.REGISTERED]
+        'INSERT INTO Enrollments (student_id, crn, enrollment_date, status) VALUES (?, ?, ?, ?)',
+        [studentId, crn, today, ENROLLMENT.REGISTERED]
       );
     }
     await conn.execute(
-      'UPDATE CourseSections SET enrolled_count = enrolled_count + 1 WHERE section_id = ?',
-      [sectionId]
+      'UPDATE CourseSections SET enrolled_count = enrolled_count + 1 WHERE crn = ?',
+      [crn]
     );
-    await recordAttempt(conn, studentId, sectionId, RESULT.REGISTERED, null);
-    await recordAudit(conn, studentId, sectionId, 'REGISTER', 'Registered for section');
+    await recordAttempt(conn, studentId, crn, RESULT.REGISTERED, null);
+    await recordAudit(conn, studentId, crn, 'REGISTER', 'Registered for section');
     return { result: RESULT.REGISTERED };
   });
 }
@@ -285,24 +285,24 @@ async function registerPlan(studentId, planId) {
   }
 
   const items = await db.query(
-    'SELECT section_id FROM CoursePlanItems WHERE plan_id = ? ORDER BY date_added ASC',
+    'SELECT crn FROM CoursePlanItems WHERE plan_id = ? ORDER BY date_added ASC',
     [planId]
   );
 
   const results = [];
   for (const item of items) {
     // eslint-disable-next-line no-await-in-loop
-    const outcome = await registerSection(studentId, item.section_id);
-    results.push({ sectionId: item.section_id, ...outcome });
+    const outcome = await registerSection(studentId, item.crn);
+    results.push({ crn: item.crn, ...outcome });
   }
   return { items: results };
 }
 
-async function dropSection(studentId, sectionId) {
+async function dropSection(studentId, crn) {
   return db.withTransaction(async (conn) => {
     const [rows] = await conn.execute(
-      'SELECT enrollment_id FROM Enrollments WHERE student_id = ? AND section_id = ? AND status = ? FOR UPDATE',
-      [studentId, sectionId, ENROLLMENT.REGISTERED]
+      'SELECT enrollment_id FROM Enrollments WHERE student_id = ? AND crn = ? AND status = ? FOR UPDATE',
+      [studentId, crn, ENROLLMENT.REGISTERED]
     );
     if (rows.length === 0) {
       throw ApiError.badRequest('You are not registered in this section');
@@ -312,25 +312,25 @@ async function dropSection(studentId, sectionId) {
       rows[0].enrollment_id,
     ]);
     await conn.execute(
-      'UPDATE CourseSections SET enrolled_count = GREATEST(enrolled_count - 1, 0) WHERE section_id = ?',
-      [sectionId]
+      'UPDATE CourseSections SET enrolled_count = GREATEST(enrolled_count - 1, 0) WHERE crn = ?',
+      [crn]
     );
-    await recordAudit(conn, studentId, sectionId, 'DROP', 'Dropped section');
+    await recordAudit(conn, studentId, crn, 'DROP', 'Dropped section');
     return { result: 'dropped' };
   });
 }
 
-async function swapSection(studentId, fromSectionId, toSectionId) {
-  if (fromSectionId === toSectionId) {
+async function swapSection(studentId, fromCrn, toCrn) {
+  if (fromCrn === toCrn) {
     throw ApiError.badRequest('Cannot swap a section for itself');
   }
 
   const sections = await db.query(
-    'SELECT section_id, course_id, status FROM CourseSections WHERE section_id IN (?, ?)',
-    [fromSectionId, toSectionId]
+    'SELECT crn, course_id, status FROM CourseSections WHERE crn IN (?, ?)',
+    [fromCrn, toCrn]
   );
-  const from = sections.find((s) => s.section_id === fromSectionId);
-  const to = sections.find((s) => s.section_id === toSectionId);
+  const from = sections.find((s) => s.crn === fromCrn);
+  const to = sections.find((s) => s.crn === toCrn);
   if (!from || !to) {
     throw ApiError.notFound('Section not found');
   }
@@ -339,7 +339,7 @@ async function swapSection(studentId, fromSectionId, toSectionId) {
   }
 
   const fail = async (reason) => {
-    await recordAttempt(db.pool, studentId, toSectionId, RESULT.FAILED, reason);
+    await recordAttempt(db.pool, studentId, toCrn, RESULT.FAILED, reason);
     return { result: RESULT.FAILED, reason };
   };
 
@@ -349,31 +349,31 @@ async function swapSection(studentId, fromSectionId, toSectionId) {
   if (await getActiveHold(studentId)) {
     return fail('Active hold on account');
   }
-  const { conflict, conflictingSectionIds } = await conflictsWithRegistered(studentId, toSectionId, {
-    excludeSectionId: fromSectionId,
+  const { conflict, conflictingCrns } = await conflictsWithRegistered(studentId, toCrn, {
+    excludeCrn: fromCrn,
   });
   if (conflict) {
-    await recordAttempt(db.pool, studentId, toSectionId, RESULT.FAILED, 'Time conflict');
-    return { result: RESULT.FAILED, reason: 'Time conflict', conflictingSectionIds };
+    await recordAttempt(db.pool, studentId, toCrn, RESULT.FAILED, 'Time conflict');
+    return { result: RESULT.FAILED, reason: 'Time conflict', conflictingCrns };
   }
 
   const today = todayIso();
   return db.withTransaction(async (conn) => {
     const [fromRows] = await conn.execute(
-      'SELECT enrollment_id FROM Enrollments WHERE student_id = ? AND section_id = ? AND status = ? FOR UPDATE',
-      [studentId, fromSectionId, ENROLLMENT.REGISTERED]
+      'SELECT enrollment_id FROM Enrollments WHERE student_id = ? AND crn = ? AND status = ? FOR UPDATE',
+      [studentId, fromCrn, ENROLLMENT.REGISTERED]
     );
     if (fromRows.length === 0) {
       throw ApiError.badRequest('You are not registered in the section you are swapping out');
     }
 
     const [toRows] = await conn.execute(
-      'SELECT capacity, enrolled_count FROM CourseSections WHERE section_id = ? FOR UPDATE',
-      [toSectionId]
+      'SELECT capacity, enrolled_count FROM CourseSections WHERE crn = ? FOR UPDATE',
+      [toCrn]
     );
     const seat = toRows[0];
     if (seat.capacity !== null && seat.enrolled_count >= seat.capacity) {
-      await recordAttempt(conn, studentId, toSectionId, RESULT.FAILED, 'Section full');
+      await recordAttempt(conn, studentId, toCrn, RESULT.FAILED, 'Section full');
       return { result: RESULT.FAILED, reason: 'Section full' };
     }
 
@@ -382,13 +382,13 @@ async function swapSection(studentId, fromSectionId, toSectionId) {
       fromRows[0].enrollment_id,
     ]);
     await conn.execute(
-      'UPDATE CourseSections SET enrolled_count = GREATEST(enrolled_count - 1, 0) WHERE section_id = ?',
-      [fromSectionId]
+      'UPDATE CourseSections SET enrolled_count = GREATEST(enrolled_count - 1, 0) WHERE crn = ?',
+      [fromCrn]
     );
 
     const [existing] = await conn.execute(
-      'SELECT enrollment_id FROM Enrollments WHERE student_id = ? AND section_id = ?',
-      [studentId, toSectionId]
+      'SELECT enrollment_id FROM Enrollments WHERE student_id = ? AND crn = ?',
+      [studentId, toCrn]
     );
     if (existing.length > 0) {
       await conn.execute(
@@ -397,17 +397,17 @@ async function swapSection(studentId, fromSectionId, toSectionId) {
       );
     } else {
       await conn.execute(
-        'INSERT INTO Enrollments (student_id, section_id, enrollment_date, status) VALUES (?, ?, ?, ?)',
-        [studentId, toSectionId, today, ENROLLMENT.REGISTERED]
+        'INSERT INTO Enrollments (student_id, crn, enrollment_date, status) VALUES (?, ?, ?, ?)',
+        [studentId, toCrn, today, ENROLLMENT.REGISTERED]
       );
     }
     await conn.execute(
-      'UPDATE CourseSections SET enrolled_count = enrolled_count + 1 WHERE section_id = ?',
-      [toSectionId]
+      'UPDATE CourseSections SET enrolled_count = enrolled_count + 1 WHERE crn = ?',
+      [toCrn]
     );
 
-    await recordAttempt(conn, studentId, toSectionId, RESULT.REGISTERED, null);
-    await recordAudit(conn, studentId, fromSectionId, 'SWAP', `Swapped to section ${toSectionId}`);
+    await recordAttempt(conn, studentId, toCrn, RESULT.REGISTERED, null);
+    await recordAudit(conn, studentId, fromCrn, 'SWAP', `Swapped to CRN ${toCrn}`);
     return { result: RESULT.REGISTERED };
   });
 }
@@ -416,9 +416,9 @@ module.exports = {
   RESULT,
   timesOverlap,
   schedulesConflict,
-  getSchedulesForSections,
+  getSchedulesForCrns,
   findConflicts,
-  getRegisteredSectionIds,
+  getRegisteredCrns,
   conflictsWithRegistered,
   getMissingPrerequisites,
   getBlockingAntirequisites,

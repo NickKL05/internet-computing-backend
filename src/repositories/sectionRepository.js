@@ -74,6 +74,16 @@ repo.search = (filters = {}) => {
   if (filters.availableOnly === 'true' || filters.availableOnly === true) {
     where.push('(cs.capacity IS NULL OR cs.enrolled_count < cs.capacity)');
   }
+  // meeting time band: morning before noon, afternoon to 5pm, evening after (US-03)
+  const bands = {
+    morning: "sch.start_time < '12:00:00'",
+    afternoon: "sch.start_time >= '12:00:00' AND sch.start_time < '17:00:00'",
+    evening: "sch.start_time >= '17:00:00'",
+  };
+  const band = filters.timeBand && bands[String(filters.timeBand).toLowerCase()];
+  if (band) {
+    where.push(`EXISTS (SELECT 1 FROM ClassSchedule sch WHERE sch.crn = cs.crn AND ${band})`);
+  }
   const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
   const lim = Number.parseInt(filters.limit, 10) || 100;
   const off = Number.parseInt(filters.offset, 10) || 0;

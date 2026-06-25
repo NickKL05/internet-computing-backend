@@ -183,7 +183,10 @@ Access levels below: **public** (no token), **auth** (any signed in user),
 | GET | `/courses` | public | filters: `q`, `level`, `departmentId`, `facultyId`, `limit`, `offset` |
 | GET | `/courses/:id` | public | detail with prerequisites, antirequisites, and co-requisites |
 | POST/PUT/DELETE | `/courses[/:id]` | admin | manage courses |
-| GET | `/sections` | public | filters: `q`, `courseId`, `termId`, `level`, `facultyId`, `departmentId`, `parentCrn`, `availableOnly`. Each row carries `crn`, credits, subject, campus, seats, and `meeting_times` |
+| GET | `/courses/:id/{prerequisites,corequisites,antirequisites}` | public | list a course's relationships |
+| POST | `/courses/:id/{prerequisites,corequisites,antirequisites}` | admin | body `{ targetCourseId }` |
+| DELETE | `/courses/:id/{prerequisites,corequisites,antirequisites}/:targetId` | admin | remove a relationship |
+| GET | `/sections` | public | filters: `q`, `courseId`, `termId`, `level`, `facultyId`, `departmentId`, `parentCrn`, `timeBand` (morning/afternoon/evening), `availableOnly`. Each row carries `crn`, credits, subject, campus, seats, and `meeting_times` |
 | GET | `/sections/:crn` | public | detail with schedule, seats remaining, and linked labs |
 | GET | `/sections/:crn/seats` | public | seat counts |
 | GET | `/sections/:crn/students` | admin | section roster |
@@ -259,8 +262,7 @@ data modeling lead:
 - `Rooms` gained a `campus`, and a `Corequisites` table was added alongside
   `Prerequisites` and `Antirequisites`.
 
-Still open for a later iteration: prerequisite/co-requisite **admin write**
-endpoints (the add-course form), and a per-class-instance status model for the
+Still open for a later iteration: a per-class-instance status model for the
 timetable (marking a single date cancelled or moved to remote).
 
 ## Security

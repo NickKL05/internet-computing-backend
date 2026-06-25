@@ -1,39 +1,24 @@
 'use strict';
 
-const getSections = (req, res) => {
-    res.json({message: "Get all sections"})
-};
+const crudController = require('./crudController');
+const asyncHandler = require('../utils/asyncHandler');
+const { parseId } = require('../utils/validate');
+const service = require('../services/sectionService');
 
-const getSectionById = (req, res) => {
-    res.json({message: `Get one section ${req.params.id}`})
-};
-
-const createSection = (req, res) => {
-    res.json({message: "Create section"})
-};
-
-const updateSection = (req, res) => {
-    res.json({message: `Update section information ${req.params.id}`})
-};
-
-const deleteSection = (req, res) => {
-    res.json({message: `Delete section ${req.params.id}`})
-};
-
-const getSectionSeats = (req, res) => {
-    res.json({message: `Get available seats in section ${req.params.id}`})
-};
-
-const getSectionEnrolledStudents = (req, res) => {
-    res.json({message: `Get students enrolled in section ${req.params.id}`})
-};
+const base = crudController(service, 'Section');
 
 module.exports = {
-    getSections,
-    getSectionById,
-    createSection,
-    updateSection,
-    deleteSection,
-    getSectionSeats,
-    getSectionEnrolledStudents
+  ...base,
+  list: asyncHandler(async (req, res) => {
+    res.json({ data: await service.search(req.query) });
+  }),
+  getById: asyncHandler(async (req, res) => {
+    res.json({ data: await service.detail(parseId(req.params.id, 'section id')) });
+  }),
+  seats: asyncHandler(async (req, res) => {
+    res.json({ data: await service.seats(parseId(req.params.id, 'section id')) });
+  }),
+  enrolledStudents: asyncHandler(async (req, res) => {
+    res.json({ data: await service.enrolledStudents(parseId(req.params.id, 'section id')) });
+  }),
 };

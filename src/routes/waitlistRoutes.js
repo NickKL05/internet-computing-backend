@@ -1,23 +1,17 @@
 'use strict';
 
 const express = require('express');
-
-const  {
-  getWaitlists,
-  getWaitlistById,
-  addToWaitlist,
-  removeFromWaitlist,
-  getWaitlistBySection,
-  getWaitlistByStudent,
-} = require('../controllers/waitlistController');
+const authenticate = require('../middleware/authenticate');
+const authorize = require('../middleware/authorize');
+const waitlistController = require('../controllers/waitlistController');
 
 const router = express.Router();
 
-router.get('/', getWaitlists);
-router.get('/section/:sectionId', getWaitlistBySection);
-router.get('/student/:studentId', getWaitlistByStudent);
-router.get('/:id', getWaitlistById);
-router.post('/', addToWaitlist);
-router.delete('/:id', removeFromWaitlist);
+router.get('/', authenticate, authorize('admin'), waitlistController.list);
+router.get('/section/:sectionId', authenticate, authorize('admin'), waitlistController.bySection);
+router.get('/student/:studentId', authenticate, waitlistController.byStudent);
+router.get('/:id', authenticate, authorize('admin'), waitlistController.getById);
+router.post('/', authenticate, waitlistController.addToWaitlist);
+router.delete('/:id', authenticate, waitlistController.remove);
 
 module.exports = router;

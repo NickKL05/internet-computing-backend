@@ -1,27 +1,20 @@
 'use strict';
 
 const express = require('express');
-
-const {
-    getStudents,
-    getStudentSchedule,
-    getStudentEnrollments,
-    getStudentWaitlist,
-    getStudentById,
-    createStudent,
-    updateStudent,
-    deleteStudent
-} = require('../controllers/studentController');
+const authenticate = require('../middleware/authenticate');
+const authorize = require('../middleware/authorize');
+const studentController = require('../controllers/studentController');
 
 const router = express.Router();
 
-router.get("/", getStudents);
-router.get("/:id/schedule", getStudentSchedule);
-router.get("/:id/enrollments", getStudentEnrollments);
-router.get("/:id/waitlist", getStudentWaitlist);
-router.get("/:id", getStudentById);
-router.post("/", createStudent);
-router.put("/:id", updateStudent);
-router.delete("/:id", deleteStudent);
+router.get('/', authenticate, authorize('admin'), studentController.list);
+router.get('/:id/schedule', authenticate, studentController.schedule);
+router.get('/:id/enrollments', authenticate, studentController.enrollments);
+router.get('/:id/waitlist', authenticate, studentController.waitlist);
+router.get('/:id/degree-progress', authenticate, studentController.degreeProgress);
+router.get('/:id', authenticate, studentController.getById);
+router.post('/', authenticate, authorize('admin'), studentController.create);
+router.put('/:id', authenticate, authorize('admin'), studentController.update);
+router.delete('/:id', authenticate, authorize('admin'), studentController.remove);
 
 module.exports = router;

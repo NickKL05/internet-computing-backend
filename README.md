@@ -94,10 +94,11 @@ src/
   config/        Centralized config loaded from environment variables
   db/            MySQL pool, query and transaction helpers, schema.sql
   middleware/    authenticate, authorize, requestLogger, notFound, errorHandler
-  services/      Business logic (authService, sessionService, registrationService)
-  utils/         ApiError, asyncHandler, logger
-  routes/        Express routers (thin; map paths to controllers)
-  controllers/   Request handlers (call services, shape responses)
+  repositories/  Data access (SQL) per entity, built on the db helpers
+  services/      Business rules; call repositories and registrationService
+  controllers/   Request handlers (validate input, call services, shape JSON)
+  routes/        Express routers (map paths to controllers, attach middleware)
+  utils/         ApiError, asyncHandler, logger, validate, access
   app.js         Express app assembly (middleware, routes, error handling)
   server.js      Entry point (startup, DB check, graceful shutdown)
 scripts/
@@ -105,9 +106,8 @@ scripts/
   seed.js        Inserts sample development data
   create-admin.js  Creates an administrator account
 tests/
-  app.test.js       Smoke tests for app wiring (no database needed)
-  authorize.test.js Role guard unit tests
-  conflict.test.js  Time conflict logic unit tests
+  unit/          Pure unit tests (no database)
+  integration/   API tests against a seeded database
 ```
 
 ## Architecture
@@ -115,13 +115,18 @@ tests/
 Requests flow through clear layers, each with one job:
 
 ```
-route  ->  controller  ->  service  ->  db helpers  ->  MySQL
+route  ->  controller  ->  service  ->  repository  ->  db helpers  ->  MySQL
 ```
 
 - Routes map an HTTP method and path to a controller and attach middleware.
 - Controllers translate between HTTP and services and never touch the database.
-- Services hold the business rules and run queries through `src/db`.
+- Services hold the business rules (eligibility, ownership, validation).
+- Repositories own the SQL for one entity, built on the `src/db` helpers.
 - `src/db` runs parameterized queries and transactions against the pool.
+
+Simple entities reuse factories (`baseRepository`, `crudService`,
+`crudController`) so each entity file stays small; complex ones (courses,
+sections, enrollments, plans, students) add their own queries and rules.
 
 All database access uses parameterized queries (the `?` placeholders) so the
 code is safe from SQL injection. Use `db.withTransaction` for any operation
@@ -155,14 +160,73 @@ const authorize = require('../middleware/authorize');
 router.post('/courses', authenticate, authorize('admin'), courseController.create);
 ```
 
-## Division of work
+## API reference
 
-The server foundation and services cover configuration, the database layer,
-middleware (including `authenticate` and `authorize`), the auth, session, and
-registration services, error handling, scripts, and tests. The feature routes
-and controllers (catalog, planning, registration, and admin endpoints) are
-built separately and mounted in `src/routes/index.js`; they call the services
-in `src/services`.
+Base path: `/api`. All responses are JSON. Success responses are wrapped as
+`{ "data": ... }`; errors as `{ "error": { "message", "code", "details" } }`.
+Send the session token from login as `Authorization: Bearer <token>`.
+
+Access levels below: **public** (no token), **auth** (any signed in user),
+**self/admin** (the owning student or an admin), **admin** (admin only).
+
+### Auth
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| POST | `/auth/login` | public | body `{ username, password }`; returns `{ token, expiresAt, user }` |
+| POST | `/auth/logout` | auth | revokes the current session |
+| GET | `/auth/me` | auth | the current user context |
+
+### Catalog (browsing is public; writes are admin)
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/courses` | public | filters: `q`, `level`, `departmentId`, `facultyId`, `limit`, `offset` |
+| GET | `/courses/:id` | public | detail with prerequisites and antirequisites |
+| POST/PUT/DELETE | `/courses[/:id]` | admin | manage courses |
+| GET | `/sections` | public | filters: `courseId`, `termId`, `availableOnly` |
+| GET | `/sections/:id` | public | detail with schedule and seats remaining |
+| GET | `/sections/:id/seats` | public | seat counts |
+| GET | `/sections/:id/students` | admin | section roster |
+| POST/PUT/DELETE | `/sections[/:id]` | admin | manage sections |
+| GET | `/departments`, `/departments/:id`, `/departments/:id/courses` | public | |
+| GET | `/programs`, `/programs/:id`, `/programs/:id/courses` | public | required courses |
+| GET | `/instructors`, `/instructors/:id`, `/instructors/:id/sections` | public | |
+| GET | `/terms`, `/faculties`, `/faculties/:id/departments`, `/rooms`, `/schedules`, `/schedules/section/:sectionId` | public | writes admin |
+
+### Students (self or admin)
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/students` | admin | list |
+| GET | `/students/:id` | self/admin | profile |
+| GET | `/students/:id/schedule` | self/admin | weekly meetings of registered sections |
+| GET | `/students/:id/enrollments` | self/admin | enrollment history |
+| GET | `/students/:id/waitlist` | self/admin | waitlist entries |
+| GET | `/students/:id/degree-progress` | self/admin | completed vs required per requirement |
+| POST/PUT/DELETE | `/students[/:id]` | admin | manage students |
+
+### Registration and waitlists
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| POST | `/enrollments` | auth | body `{ sectionId }`; registers the signed in student |
+| DELETE | `/enrollments/:id` | self/admin | drop |
+| POST | `/enrollments/:id/switch` | self/admin | body `{ toSectionId }`; swap |
+| GET | `/enrollments` | admin | all enrollments |
+| GET | `/enrollments/:id` | self/admin | one enrollment |
+| PUT | `/enrollments/:id` | admin | set grade or status |
+| POST | `/waitlists` | auth | body `{ sectionId }` |
+| DELETE | `/waitlists/:id` | self/admin | leave the waitlist |
+
+Registration actions return `{ result: "registered" | "waitlisted" | "failed", reason? }`.
+A `failed` result responds with HTTP 409 and a reason such as `Prerequisite not met`,
+`Time conflict`, `Active hold on account`, or `Already registered in this course`.
+
+### Course plans (student only)
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/plans`, `/plans/:id` | student | |
+| POST | `/plans` | student | body `{ planName? }` |
+| POST | `/plans/:id/items` | student | body `{ sectionId }` |
+| DELETE | `/plans/:id/items/:sectionId` | student | |
+| POST | `/plans/:id/submit` | student | registers every section in the plan (US-07) |
 
 ## Registration rules
 
@@ -188,11 +252,43 @@ table, the auth tables were normalized into an `Accounts` supertype with
 from an earlier version, drop and re-run `npm run db:init` (there is no
 production data yet). Flag this change to the data modeling lead.
 
+## Security
+
+- **Passwords are hashed, never stored or returned in readable form.** Account
+  passwords go through bcrypt (salted, one-way) in `authService.hashPassword` and
+  are only ever checked with `bcrypt.compare`. The database holds the hash in
+  `Accounts.password_hash`; the plaintext is never persisted, logged, or included
+  in any API response. Passwords are hashed rather than reversibly encrypted on
+  purpose, which is the recommended practice for credentials: a full database
+  dump still does not reveal them. The cost factor is tunable via
+  `BCRYPT_SALT_ROUNDS`.
+- **SQL injection:** every query is parameterized through the `db` helpers; user
+  input is never concatenated into SQL.
+- **Sessions:** opaque random tokens stored server side in `UserSessions`, with a
+  30 minute inactivity expiry and revocation on logout.
+- **Secrets:** database credentials live only in `.env`, which is gitignored.
+
+### Encryption at rest
+
+Hashing protects the credentials themselves. To encrypt the entire datastore on
+disk (every table, not just passwords), enable encryption at the database or
+operating system level. This is a deployment setting, not application code, so it
+is intentionally not baked into `schema.sql`:
+
+- **MySQL InnoDB encryption (TDE):** configure a keyring component, then set
+  `default_table_encryption=ON` or create tables with `ENCRYPTION='Y'`.
+- **Full disk encryption:** BitLocker (Windows) or LUKS/FileVault, which
+  transparently encrypts the MySQL data directory.
+
 ## Testing
 
 ```bash
-npm test
+npm test                 # unit tests, no database required
+npm run test:integration # API tests against a seeded database
 ```
 
-The included smoke tests do not need a database. Database backed tests should
-point at a separate test database, not your development data.
+Unit tests (`tests/unit`) cover app wiring, the role guard, and the time
+conflict logic with no database. The integration suite (`tests/integration`)
+drives the real endpoints with supertest and expects a seeded database, so run
+`npm run db:init && npm run db:seed` first. Point integration tests at a
+dedicated database, not data you care about, since they create and drop records.

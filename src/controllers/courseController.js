@@ -1,29 +1,18 @@
 'use strict';
 
-const getCourses = (req, res) => {
-    res.json({message: "Get all courses"})
-};
+const crudController = require('./crudController');
+const asyncHandler = require('../utils/asyncHandler');
+const { parseId } = require('../utils/validate');
+const service = require('../services/courseService');
 
-const getCourseById = (req, res) => {
-    res.json({message: `Get course ${req.params.id}`})
-};
-
-const createCourse = (req, res) => {
-    res.json({message: "Create course"})
-};
-
-const updateCourse = (req, res) => {
-    res.json({message: `Update course ${req.params.id}`})
-};
-
-const deleteCourse = (req, res) => {
-    res.json({message: `Delete course ${req.params.id}`})
-};
+const base = crudController(service, 'Course');
 
 module.exports = {
-  getCourses,
-  getCourseById,
-  createCourse,
-  updateCourse,
-  deleteCourse,
+  ...base,
+  list: asyncHandler(async (req, res) => {
+    res.json({ data: await service.search(req.query) });
+  }),
+  getById: asyncHandler(async (req, res) => {
+    res.json({ data: await service.detail(parseId(req.params.id, 'course id')) });
+  }),
 };

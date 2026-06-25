@@ -1,23 +1,17 @@
 'use strict';
 
 const express = require('express');
-
-const {
-  getSchedules,
-  getScheduleById,
-  createSchedule,
-  updateSchedule,
-  deleteSchedule,
-  getScheduleBySection,
-} = require('../controllers/scheduleController');
+const authenticate = require('../middleware/authenticate');
+const authorize = require('../middleware/authorize');
+const scheduleController = require('../controllers/scheduleController');
 
 const router = express.Router();
 
-router.get('/', getSchedules);
-router.get('/section/:sectionId', getScheduleBySection);
-router.get('/:id', getScheduleById);
-router.post('/', createSchedule);
-router.put('/:id', updateSchedule);
-router.delete('/:id', deleteSchedule);
+router.get('/', scheduleController.list);
+router.get('/section/:sectionId', scheduleController.bySection);
+router.get('/:id', scheduleController.getById);
+router.post('/', authenticate, authorize('admin'), scheduleController.create);
+router.put('/:id', authenticate, authorize('admin'), scheduleController.update);
+router.delete('/:id', authenticate, authorize('admin'), scheduleController.remove);
 
 module.exports = router;

@@ -1,23 +1,17 @@
 'use strict';
 
 const express = require('express');
-
-const {
-    getEnrollments,
-    getEnrollmentById,
-    registerStudent,
-    dropStudent,
-    updateEnrollments,
-    swapSections
-} = require('../controllers/enrollmentController');
+const authenticate = require('../middleware/authenticate');
+const authorize = require('../middleware/authorize');
+const enrollmentController = require('../controllers/enrollmentController');
 
 const router = express.Router();
 
-router.get("/", getEnrollments);
-router.get("/:id", getEnrollmentById);
-router.post("/", registerStudent);
-router.delete("/:id", dropStudent);
-router.put("/:id", updateEnrollments);
-router.post("/:id/switch", swapSections);
+router.get('/', authenticate, authorize('admin'), enrollmentController.list);
+router.get('/:id', authenticate, enrollmentController.getById);
+router.post('/', authenticate, enrollmentController.register);
+router.delete('/:id', authenticate, enrollmentController.drop);
+router.put('/:id', authenticate, authorize('admin'), enrollmentController.update);
+router.post('/:id/switch', authenticate, enrollmentController.swap);
 
 module.exports = router;

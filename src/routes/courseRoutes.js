@@ -1,21 +1,16 @@
 'use strict';
 
 const express = require('express');
-
-const {
-    getCourses,
-    getCourseById,
-    createCourse,
-    updateCourse,
-    deleteCourse
-} = require('../controllers/courseController');
+const authenticate = require('../middleware/authenticate');
+const authorize = require('../middleware/authorize');
+const courseController = require('../controllers/courseController');
 
 const router = express.Router();
 
-router.get("/", getCourses);
-router.get("/:id", getCourseById);
-router.post("/", createCourse);
-router.put("/:id", updateCourse);
-router.delete("/:id", deleteCourse);
+router.get('/', courseController.list);
+router.get('/:id', courseController.getById);
+router.post('/', authenticate, authorize('admin'), courseController.create);
+router.put('/:id', authenticate, authorize('admin'), courseController.update);
+router.delete('/:id', authenticate, authorize('admin'), courseController.remove);
 
 module.exports = router;

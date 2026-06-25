@@ -1,44 +1,25 @@
 'use strict';
 
-const getStudents = (req, res) => {
-    res.json({message: "Get all students"})
-};
+const crudController = require('./crudController');
+const asyncHandler = require('../utils/asyncHandler');
+const { parseId } = require('../utils/validate');
+const { ensureSelfOrAdmin } = require('../utils/access');
+const service = require('../services/studentService');
 
-const getStudentById = (req, res) => {
-    res.json({message: `Get student ${req.params.id}`})
-};
+const base = crudController(service, 'Student');
 
-const createStudent = (req, res) => {
-    res.json({message: "Create student"})
-};
-
-const updateStudent = (req, res) => {
-    res.json({message: `Update student information ${req.params.id}`})
-};
-
-const deleteStudent = (req, res) => {
-    res.json({message: `Delete student ${req.params.id}`})
-};
-
-const getStudentSchedule = (req, res) => {
-    res.json({message: `View student schedule ${req.params.id}`})
-};
-
-const getStudentEnrollments = (req, res) => {
-    res.json({message: `View student current enrollment ${req.params.id}`})
-};
-
-const getStudentWaitlist = (req, res) => {
-    res.json({message: `View student waitlist ${req.params.id}`})
-};
+const withSelfCheck = (fn) =>
+  asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id, 'student id');
+    ensureSelfOrAdmin(req, id);
+    res.json({ data: await fn(id) });
+  });
 
 module.exports = {
-    getStudents,
-    getStudentSchedule,
-    getStudentEnrollments,
-    getStudentWaitlist,
-    getStudentById,
-    createStudent,
-    updateStudent,
-    deleteStudent
+  ...base,
+  getById: withSelfCheck((id) => service.profile(id)),
+  schedule: withSelfCheck((id) => service.schedule(id)),
+  enrollments: withSelfCheck((id) => service.enrollments(id)),
+  waitlist: withSelfCheck((id) => service.waitlist(id)),
+  degreeProgress: withSelfCheck((id) => service.degreeProgress(id)),
 };

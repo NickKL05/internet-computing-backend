@@ -1,34 +1,65 @@
 'use strict';
 
-const getEnrollments = (req, res) => {
-    res.json({message: "Get all enrollments"})
-};
+const asyncHandler = require('../utils/asyncHandler');
+const ApiError = require('../utils/ApiError');
+const { parseId, parsePagination, requireFields } = require('../utils/validate');
+const { ensureSelfOrAdmin } = require('../utils/access');
+const service = require('../services/enrollmentService');
 
-const getEnrollmentById = (req, res) => {
-    res.json({message: `Get one enrollment record ${req.params.id}`})
-};
+// students act on themselves; admins may target a specific student via body.studentId
+function targetStudentId(req) {
+  if (req.user.role === 'admin' && req.body.studentId) {
+    return parseId(req.body.studentId, 'studentId');
+  }
+  return req.user.studentId;
+}
 
-const registerStudent = (req, res) => {
-    res.json({message: "Register student in course section"})
-};
+const list = asyncHandler(async (req, res) => {
+  res.json({ data: await service.list(parsePagination(req.query)) });
+});
 
-const dropStudent = (req, res) => {
-    res.json({message: `Drop a student from a course section ${req.params.id}`})
-};
+const getById = asyncHandler(async (req, res) => {
+  const enrollment = await service.get(parseId(req.params.id, 'enrollment id'));
+  ensureSelfOrAdmin(req, enrollment.student_id);
+  res.json({ data: enrollment });
+});
 
-const updateEnrollments = (req, res) => {
-    res.json({message: `Update enrollment status ${req.params.id}`})
-};
+const register = asyncHandler(async (req, res) => {
+  requireFields(req.body, ['sectionId']);
+  const studentId = targetStudentId(req);
+  if (!studentId) {
+    throw ApiError.forbidden('This action is only available to student accounts');
+  }
+  const result = await service.register(studentId, parseId(req.body.sectionId, 'sectionId'));
+  res.status(result.result === 'failed' ? 409 : 201).json({ data: result });
+});
 
-const swapSections = (req, res) => {
-    res.json({message: `Swaps one section for another ${req.params.id}`})
-};
+const drop = asyncHandler(async (req, res) => {
+  const enrollment = await service.findRaw(parseId(req.params.id, 'enrollment id'));
+  if (!enrollment) {
+    throw ApiError.notFound('Enrollment not found');
+  }
+  ensureSelfOrAdmin(req, enrollment.student_id);
+  res.json({ data: await service.drop(enrollment.student_id, enrollment.section_id) });
+});
 
-module.exports = {
-    getEnrollments,
-    getEnrollmentById,
-    registerStudent,
-    dropStudent,
-    updateEnrollments,
-    swapSections
-};
+const swap = asyncHandler(async (req, res) => {
+  requireFields(req.body, ['toSectionId']);
+  const enrollment = await service.findRaw(parseId(req.params.id, 'enrollment id'));
+  if (!enrollment) {
+    throw ApiError.notFound('Enrollment not found');
+  }
+  ensureSelfOrAdmin(req, enrollment.student_id);
+  const result = await service.swap(
+    enrollment.student_id,
+    enrollment.section_id,
+    parseId(req.body.toSectionId, 'toSectionId')
+  );
+  res.status(result.result === 'failed' ? 409 : 200).json({ data: result });
+});
+
+const update = asyncHandler(async (req, res) => {
+  res.json({ data: await service.update(parseId(req.params.id, 'enrollment id'), req.body) });
+});
+
+module.exports = { list, getById, register, drop, update, swap };

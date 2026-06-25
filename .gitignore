@@ -23,6 +23,9 @@ build/
 # Project planning and reference material (kept out of the backend repo)
 group_milestone1/
 
+# Test files (kept local, not committed)
+tests/
+
 # Editor and OS files
 .vscode/
 .idea/

@@ -1,34 +1,45 @@
 'use strict';
 
-const getWaitlists = (req, res) => {
-  res.json({ message: 'Get all waitlist records' });
-};
+const asyncHandler = require('../utils/asyncHandler');
+const ApiError = require('../utils/ApiError');
+const { parseId, parsePagination, requireFields } = require('../utils/validate');
+const { ensureSelfOrAdmin } = require('../utils/access');
+const service = require('../services/waitlistService');
 
-const getWaitlistById = (req, res) => {
-  res.json({ message: `Get waitlist record with ID ${req.params.id}` });
-};
+const list = asyncHandler(async (req, res) => {
+  res.json({ data: await service.list(parsePagination(req.query)) });
+});
 
-const addToWaitlist = (req, res) => {
-  res.json({ message: 'Add student to waitlist' });
-};
+const getById = asyncHandler(async (req, res) => {
+  res.json({ data: await service.get(parseId(req.params.id, 'waitlist id')) });
+});
 
-const removeFromWaitlist = (req, res) => {
-  res.json({ message: `Remove waitlist record with ID ${req.params.id}` });
-};
+const bySection = asyncHandler(async (req, res) => {
+  res.json({ data: await service.bySection(parseId(req.params.sectionId, 'section id')) });
+});
 
-const getWaitlistBySection = (req, res) => {
-  res.json({ message: `Get waitlist for section with ID ${req.params.sectionId}` });
-};
+const byStudent = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.studentId, 'student id');
+  ensureSelfOrAdmin(req, id);
+  res.json({ data: await service.byStudent(id) });
+});
 
-const getWaitlistByStudent = (req, res) => {
-  res.json({ message: `Get waitlist records for student with ID ${req.params.studentId}` });
-};
+const addToWaitlist = asyncHandler(async (req, res) => {
+  requireFields(req.body, ['sectionId']);
+  const studentId =
+    req.user.role === 'admin' && req.body.studentId
+      ? parseId(req.body.studentId, 'studentId')
+      : req.user.studentId;
+  if (!studentId) {
+    throw ApiError.forbidden('This action is only available to student accounts');
+  }
+  res.status(201).json({ data: await service.add(studentId, parseId(req.body.sectionId, 'sectionId')) });
+});
 
-module.exports = {
-  getWaitlists,
-  getWaitlistById,
-  addToWaitlist,
-  removeFromWaitlist,
-  getWaitlistBySection,
-  getWaitlistByStudent,
-};
+const remove = asyncHandler(async (req, res) => {
+  const entry = await service.get(parseId(req.params.id, 'waitlist id'));
+  ensureSelfOrAdmin(req, entry.student_id);
+  res.json({ data: await service.remove(entry.waitlist_id) });
+});
+
+module.exports = { list, getById, bySection, byStudent, addToWaitlist, remove };
